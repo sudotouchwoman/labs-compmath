@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.lib.twodim_base import diag
 
 def cubic_spline_coeff(x_nodes, y_nodes):
     '''
@@ -85,31 +84,6 @@ def cubic_spline_coeff(x_nodes, y_nodes):
     # concatenate b, c, d vectors 
     # (also chop off last c item as c.shape() is (n,1) and we want to get (n-1 x 3) coeff matrix)
     return np.c_[b, c[:-1], d]
-
-
-def cubic_spline(x, cs_coeff):
-    '''
-        Compute and return cubic spline value for given x
-
-        + `x`: float
-            must belong to [a;b] (which is [0;1] in our particular case)
-
-        + `cs_coeff`: 2darray
-            matrix of shape `(N-1) x 3`, customarily computed using `cubic_spline_coeff()`
-    '''
-    pass
-
-def d_cubic_spline(x, cs_coeff):
-    '''
-        Compute and return 1st derivative of cubic spline for given x
-
-        + `x`: float
-            must belong to [a;b] (which is [0;1] in our particular case)
-
-        + `cs_coeff`: 2darray
-            matrix of shape `(N-1) x 3`, customarily computed using `cubic_spline_coeff()`
-    '''
-    pass
 
 if __name__ == '__main__':
     import json
