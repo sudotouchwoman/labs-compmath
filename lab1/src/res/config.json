@@ -1,0 +1,11 @@
+{
+    "NODES":"res/nodes.json",
+    "PLOTNAME":"res/lagrange-perturbed-X",
+    "TARGET":"X",
+    "VECTORS": 1000,
+    "MEAN": 0,
+    "SD": 10e-2,
+    "q": 0.9,
+    "BOUNDS":[0, 1],
+    "STEP":0.001
+}
