@@ -1,4 +1,5 @@
+# ignore python cache files
 *.pyc
 *.svg
 *.png
-*.jpg
+*.img

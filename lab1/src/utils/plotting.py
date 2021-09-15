@@ -1,3 +1,10 @@
+'''
+# Plotting routines
+
+Module contains simple `PlotArtist` class I implemented for drawing plots (who could've guessed?)
+
+Basically, we need plotting set of points and sequence of functions, `plot_from_arrays()` and `plot_points()` are doing just that
+'''
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,8 +20,11 @@ class PlotArtist:
     def __init__(self, figsize:tuple = (10, 10), dpi:int = 300) -> None:
         self.CANVAS = plt.figure(figsize=figsize, dpi=dpi)
         self.AX = self.CANVAS.add_subplot(111)
+        # I added following lines for same scale as Lagrange interpolation initially produced huge errors
+        # and messed up entire plot. It just looks better in this way
+        # also add dotted grid
         self.AX.grid(linestyle=':')
-        self.AX.set_ylim(0, 10)
+        self.AX.set_ylim(3, 4)
 
     def plot_from_arrays(self, x: np.ndarray, *fx, style:dict = DEFSTYLE) -> None:
         '''
@@ -52,4 +62,7 @@ class PlotArtist:
         self.CANVAS.savefig(f'{filename}.{format}', format=format)
 
     def add_plot(self, x: np.ndarray, y:np.ndarray, style:dict = DEFSTYLE) -> None:
+        '''
+            Add single plot to existing figure
+        '''
         self.AX.plot(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'))

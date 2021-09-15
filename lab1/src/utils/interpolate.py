@@ -1,3 +1,12 @@
+'''
+# Interpolation methods
+
+module contains implementations of two required methods: 
+
++ Cubic spline interpolation
+
++ Lagrange polynom interpolation
+'''
 import numpy as np
 import logging
 import os
@@ -41,12 +50,10 @@ class InterpolationMethod:
     '''
     X_NODES = None
     Y_NODES = None
-    ARTIST = None
 
-    def __init__(self, x_nodes, y_nodes, no_artist: bool = False) -> None:
+    def __init__(self, x_nodes, y_nodes) -> None:
         self.X_NODES = x_nodes
         self.Y_NODES = y_nodes
-        if not no_artist: self.ARTIST = PlotArtist()
 
     def compute_at_x(self, x):
         pass
@@ -54,15 +61,17 @@ class InterpolationMethod:
     def compute_for_range(self, x_range):
         pass
 
-
     def interpolate(self) -> None:
-        self.ARTIST.plot_points(self.X_NODES, self.Y_NODES)
+        pass
 
 class CubSqplineMethod(InterpolationMethod):
+    '''
+        Subclass implementing interpolation using cubic splines
+    '''
     COEFFS = None
 
-    def __init__(self, x_nodes, y_nodes, no_artist: bool = False) -> None:
-        super().__init__(x_nodes, y_nodes, no_artist)
+    def __init__(self, x_nodes, y_nodes) -> None:
+        super().__init__(x_nodes, y_nodes)
         self.COEFFS = self.get_coeffs()
     
     def get_coeffs(self):
@@ -147,13 +156,20 @@ class CubSqplineMethod(InterpolationMethod):
         # here we assume that provided range step is smaller 
         # than the distance between neighbouring interpolation nodes
         # (like, for god's sake, why would we interpolate otherwise?)
+        
         # i basically merged compute_d_at_x and compute_for_range here
-        # the idea is that by evaluating result in a sequential way, there are less computations done when trying
-        # to resolve range given x belongs to
+        # the idea is that by evaluating result in a sequential way, there are less actions performed then compared with trying
+        # to resolve range each given x belongs to
         # (like, single condition instead of O(n) get_range() in methods for single x
         # it is not something one should bother when computing S(x) for single x, but for huge amounts of x points
         # this is something to be aware of and reason for small step of x_range, in order to avoid overlap)
         # I just don't want to burn my processor
+        # upd. I see how unompimized methods may load hardware now
+        # so far, splines are computed faster than Lagrange polynomials, 
+        # latter required a couple of minutes to compute 1000 times
+        #  for advanced part while consuming lots of RAM and 
+        # increasing CPU frequency up to 4.2MHz (which is not the highest possible 4.8,
+        # but the fans of my laptop began to spin and scared me)
 
         # iterate through range, increasing current range if needed
         current_range = 0
@@ -186,33 +202,42 @@ class CubSqplineMethod(InterpolationMethod):
                 increment, as points to compute interpolant are distributed uniformly
         '''
         log.info(msg=f'[{self.__class__.__name__}] Performs computations and saves results')
+        
+        # create range of values to compute for and perform computations
         x_range = np.arange(self.X_NODES[-1] + step, step=step, dtype=np.float64)
         spline_values = self.compute_for_range(x_range=x_range)
         
-        def print_coeffs(self) -> None:
-            log.debug(msg=f'[{self.__class__.__name__}] Computed coefficients:')
-            log.debug(msg=f'[{self.__class__.__name__}] A_i values vector: {self.Y_NODES}')
-            log.debug(msg=f'[{self.__class__.__name__}] B_i values vector: {self.COEFFS[:, 0]}')
-            log.debug(msg=f'[{self.__class__.__name__}] C_i values vector: {self.COEFFS[:, 1]}')
-            log.debug(msg=f'[{self.__class__.__name__}] D_i values vector: {self.COEFFS[:, 2]}')
+        # print intermediate results of method: spline coefficients
+        log.debug(msg=f'[{self.__class__.__name__}] Computed coefficients:')
+        log.debug(msg=f'[{self.__class__.__name__}] A_i values vector: {self.Y_NODES}')
+        log.debug(msg=f'[{self.__class__.__name__}] B_i values vector: {self.COEFFS[:, 0]}')
+        log.debug(msg=f'[{self.__class__.__name__}] C_i values vector: {self.COEFFS[:, 1]}')
+        log.debug(msg=f'[{self.__class__.__name__}] D_i values vector: {self.COEFFS[:, 2]}')
 
-        print_coeffs(self)
         log.info(msg=f'[{self.__class__.__name__}] Provided x range (using step {step}):{x_range}')
         log.info(msg=f'[{self.__class__.__name__}] Corresponding spline values:{spline_values}')
+        
+        # dict with basic pyplot appearancee parameters
         style = {
             'legend':['$\it{S(x)}$'],
             'color':'#7B1FA2',
             'linestyle':'-'
         }
-        self.ARTIST.plot_from_arrays(x_range, spline_values, style=style)
-        super().interpolate()
-        self.ARTIST.save_as(filename=filename)
+        
+        # plot given nodes and result
+        ARTIST = PlotArtist()
+        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
+        ARTIST.plot_from_arrays(x_range, spline_values, style=style)
+        ARTIST.save_as(filename=filename)
         log.info(msg=f'[{self.__class__.__name__}] Created plot at {filename}')
 
 class LagrangeMethod(InterpolationMethod):
+    '''
+        Subclass implementing interpolation using Lagrange polynom
+    '''
 
-    def __init__(self, x_nodes, y_nodes, no_artist:bool = False) -> None:
-        super().__init__(x_nodes, y_nodes, no_artist)
+    def __init__(self, x_nodes, y_nodes) -> None:
+        super().__init__(x_nodes, y_nodes)
     
     def compute_at_x(self, x):
         return L_at_x(x=x, x_nodes=self.X_NODES, y_nodes=self.Y_NODES)
@@ -234,18 +259,24 @@ class LagrangeMethod(InterpolationMethod):
                 increment, as points to compute interpolant are distributed uniformly
         '''
         log.info(msg=f'[{self.__class__.__name__}] Performs computations and saves results')
+        
+        # create range of values to compute for and array of corresponding interpolant values
         x_range = np.arange(self.X_NODES[-1] + step, step=step, dtype=np.float64)
         L_x_range = self.compute_for_range(x_range=x_range)
 
         log.info(msg=f'[{self.__class__.__name__}] Provided x range (using step {step}):{x_range}')
         log.info(msg=f'[{self.__class__.__name__}] Corresponding Lagrange interpolant values:{L_x_range}')
 
+        # dict with basic pyplot appearancee parameters
         style = {
             'legend':[f'$\it{{L_{{{len(self.X_NODES)-1}}}(x)}}$'],
             'color':'#67CC8E',
             'linestyle':'-'
         }
-        self.ARTIST.plot_from_arrays(x_range, L_x_range, style=style)
-        super().interpolate()
-        self.ARTIST.save_as(filename=filename)
+        
+        # plot given nodes and result
+        ARTIST = PlotArtist()
+        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
+        ARTIST.plot_from_arrays(x_range, L_x_range, style=style)
+        ARTIST.save_as(filename=filename)
         log.info(msg=f'[{self.__class__.__name__}] Created plot at {filename}')
