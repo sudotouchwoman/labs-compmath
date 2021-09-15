@@ -64,7 +64,7 @@ class InterpolationMethod:
     def interpolate(self) -> None:
         pass
 
-class CubSqplineMethod(InterpolationMethod):
+class CubSplineMethod(InterpolationMethod):
     '''
         Subclass implementing interpolation using cubic splines
     '''
@@ -79,7 +79,8 @@ class CubSqplineMethod(InterpolationMethod):
 
     def compute_at_x(self, x):
 
-        # find range provided x belongs to
+        # find which range provided x belongs to
+        # in a naive linear, however, we can use binary search aswell
         def get_range(x) -> int:
             i = 0
             for x_node in self.X_NODES:
@@ -90,6 +91,7 @@ class CubSqplineMethod(InterpolationMethod):
         range_idx = get_range(x)
 
         # create shorter and more readable variable names
+        # corresponding to vectors of coefficients for each polynom
         x_i = self.X_NODES
         a = self.Y_NODES
         b = self.COEFFS[0]
@@ -226,8 +228,9 @@ class CubSqplineMethod(InterpolationMethod):
         
         # plot given nodes and result
         ARTIST = PlotArtist()
-        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
         ARTIST.plot_from_arrays(x_range, spline_values, style=style)
+        ARTIST.fill_between(x_range, spline_values)
+        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
         ARTIST.save_as(filename=filename)
         log.info(msg=f'[{self.__class__.__name__}] Created plot at {filename}')
 
@@ -276,7 +279,8 @@ class LagrangeMethod(InterpolationMethod):
         
         # plot given nodes and result
         ARTIST = PlotArtist()
-        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
         ARTIST.plot_from_arrays(x_range, L_x_range, style=style)
+        ARTIST.fill_between(x_range, L_x_range)
+        ARTIST.plot_points(self.X_NODES, self.Y_NODES)
         ARTIST.save_as(filename=filename)
         log.info(msg=f'[{self.__class__.__name__}] Created plot at {filename}')

@@ -15,7 +15,7 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 print(f'Writing log to {LOGFILE}')
 
-from .interpolate import load_nodes, LagrangeMethod, CubSqplineMethod
+from .interpolate import load_nodes, LagrangeMethod, CubSplineMethod
 from .plotting import PlotArtist
 
 class SubsetTester:
@@ -61,16 +61,21 @@ class SubsetTester:
         # once again create array with all x values to plot for
         x_range = np.arange(start=limits[0], stop=limits[1] + step, step=step)
 
+        # also add original nodes (points) and plot CI along with averaged polynom (latter was formed by means)
+        lower_bound = [bound[0] for bound in self.CI]
+        upper_bound = [bound[1] for bound in self.CI]
+
+        ARTIST.add_plot(x_range, lower_bound, {'color': '#ff6d71', 'linestyle': ':'})
+        ARTIST.add_plot(x_range, upper_bound, {'color': '#ff6d71', 'linestyle': ':'})
+        ARTIST.fill_between(x_range, lower_bound, upper_bound)
+        ARTIST.add_plot(x_range, self.AVG, {'color': '#3a66c5', 'linestyle': '--'})
+        ARTIST.plot_points(self.NODES['x'], self.NODES['y'])
+
         # plot several polynoms from subset
         for i, ith_slice in enumerate(self.POLYNOM_VALUES):
             if i % 100 != 0: continue
             ARTIST.add_plot(x_range, ith_slice, {'color': '#91C46C', 'linestyle': ':'})
-        
-        # also add original nodes (points) and plot CI along with averaged polynom (latter was formed by means)
-        ARTIST.add_plot(x_range, [bound[0] for bound in self.CI], {'color': '#ff6d71', 'linestyle': ':'})
-        ARTIST.add_plot(x_range, [bound[1] for bound in self.CI], {'color': '#ff6d71', 'linestyle': ':'})
-        ARTIST.add_plot(x_range, self.AVG, {'color': '#3a66c5', 'linestyle': '--'})
-        ARTIST.plot_points(self.NODES['x'], self.NODES['y'])
+
 
         ARTIST.save_as(self.SETTINGS['PLOTNAME'])
         log.info(msg=f'Plots saved as {self.SETTINGS["PLOTNAME"]}')
@@ -125,7 +130,7 @@ class UncertainX(SubsetTester):
         x_range = np.arange(start=limits[0], stop=limits[1] + step, step=step)
         
         for sample in self.X_VECTORS:
-            model = LagrangeMethod(sample, self.Y_VECTOR)
+            model = CubSplineMethod(sample, self.Y_VECTOR)
             self.POLYNOM_VALUES.append( model.compute_for_range(x_range) )
         
 
@@ -167,7 +172,7 @@ class UncertainH(SubsetTester):
         x_range = np.arange(start=limits[0], stop=limits[1] + step, step=step)
         
         for sample in self.Y_VECTORS:
-                model = LagrangeMethod(self.X_VECTOR, sample)
+                model = CubSplineMethod(self.X_VECTOR, sample)
                 self.POLYNOM_VALUES.append( model.compute_for_range(x_range) )
 
 def X_analysis(config: dict) -> None:

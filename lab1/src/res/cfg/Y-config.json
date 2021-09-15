@@ -1,6 +1,6 @@
 {
-    "NODES":"res/nodes.json",
-    "PLOTNAME":"res/plots/lagrange-perturbed-H-subset",
+    "NODES":"res/cfg/nodes.json",
+    "PLOTNAME":"res/plots/spline-perturbed-H",
     "VECTORS": 1000,
     "MEAN": 0,
     "SD": 1e-2,

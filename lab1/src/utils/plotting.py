@@ -66,3 +66,9 @@ class PlotArtist:
             Add single plot to existing figure
         '''
         self.AX.plot(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'))
+
+    def fill_between(self, x, *curves, style:dict = {'alpha': 0.5, 'color':'#c4c4c4'}):
+        '''
+            Color area between provided curves on range x 
+        '''
+        self.AX.fill_between(x, *curves, color=style['color'], alpha=style['alpha'])
