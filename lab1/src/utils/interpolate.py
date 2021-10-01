@@ -124,8 +124,9 @@ class CubSplineMethod(InterpolationMethod):
         S_i = lambda x, i:\
             a[i] + b[i]*(x - x_nodes[i]) + c[i]*(x - x_nodes[i])**2 + d[i]*(x - x_nodes[i])**3    
         
+        ranges = len(self.X_NODES) - 2
         for  idx, x_i in enumerate(x_range):
-            if x_i > self.X_NODES[current_range + 1]: current_range += 1
+            if x_i > self.X_NODES[current_range + 1]: current_range = min(current_range + 1, ranges)
             spline_values[idx] = S_i(x_i, current_range)
 
         return spline_values
@@ -187,8 +188,9 @@ class CubSplineMethod(InterpolationMethod):
         d_S_i = lambda x, i:\
             b[i] + 2*c[i]*(x - x_i[i]) + 3**d[i]*(x - x_i[i])**2
         
+        ranges = len(self.X_NODES) - 2
         for  idx, x_i in enumerate(x_range):
-            if x_i > self.X_NODES[current_range]: current_range += 1
+            if x_i > self.X_NODES[current_range]: current_range = min(current_range + 1, ranges)
             d_spline_values[idx] = d_S_i(x_i, current_range)
 
         return d_spline_values

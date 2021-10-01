@@ -1,10 +1,10 @@
 {
     "NODES":"res/cfg/nodes.json",
-    "PLOTNAME":"res/plots/spline-perturbed-X",
+    "PLOTNAME":"res/plots/spline-perturbed-X-subset",
     "VECTORS": 1000,
     "MEAN": 0,
     "SD": 1e-2,
     "q": 0.99,
-    "BOUNDS":[0.05, 0.95],
+    "BOUNDS":[0, 1],
     "STEP":0.001
 }
