@@ -56,13 +56,13 @@ class InterpolationMethod:
         self.Y_NODES = y_nodes
 
     def compute_at_x(self, x):
-        pass
+        raise NotImplementedError
 
     def compute_for_range(self, x_range):
-        pass
+        raise NotImplementedError
 
     def interpolate(self) -> None:
-        pass
+        raise NotImplementedError
 
 class CubSplineMethod(InterpolationMethod):
     '''
@@ -82,13 +82,10 @@ class CubSplineMethod(InterpolationMethod):
         # find which range provided x belongs to
         # in a naive linear, however, we can use binary search aswell
         def get_range(x) -> int:
-            i = 0
-            for x_node in self.X_NODES:
-                if x < x_node: i += 1
-                else: break
-            return i
+            for i, _ in enumerate(self.X_NODES[:-1]):
+                if self.X_NODES[i] <= x < self.X_NODES[i+1]: return i
+            raise IndexError
         
-        range_idx = get_range(x)
 
         # create shorter and more readable variable names
         # corresponding to vectors of coefficients for each polynom
@@ -102,14 +99,18 @@ class CubSplineMethod(InterpolationMethod):
         S_i = lambda x, i:\
             a[i] + b[i]*(x - x_i[i]) + c[i]*(x - x_i[i])**2 + d[i]*(x - x_i[i])**3
 
-        return S_i(x=x, i=range_idx)
+        return S_i(x=x, i=get_range(x))
 
     def compute_for_range(self, x_range):
         # here we assume that provided range step is smaller 
         # than the distance between neighbouring interpolation nodes
         # (like, for god's sake, why would we interpolate otherwise?)
+        # this way the only check we need to perform is 
+        # whether the current point exceeds right range-bound and increment current range if so
+        # there is however a chance that provided range is going to be sparse
+        # and yes, in such case this code would not work as intended
+        # but frankly, such trick seemed beautiful to me
 
-        # iterate through range, increasing current range if needed
         current_range = 0
         spline_values = np.zeros_like(x_range, dtype=np.float64)
 
@@ -124,9 +125,9 @@ class CubSplineMethod(InterpolationMethod):
         S_i = lambda x, i:\
             a[i] + b[i]*(x - x_nodes[i]) + c[i]*(x - x_nodes[i])**2 + d[i]*(x - x_nodes[i])**3    
         
-        ranges = len(self.X_NODES) - 2
+        ranges = len(x_nodes) - 2
         for  idx, x_i in enumerate(x_range):
-            if x_i > self.X_NODES[current_range + 1]: current_range = min(current_range + 1, ranges)
+            if x_i > x_nodes[current_range + 1]: current_range = min(current_range + 1, ranges)
             spline_values[idx] = S_i(x_i, current_range)
 
         return spline_values
@@ -135,13 +136,10 @@ class CubSplineMethod(InterpolationMethod):
 
         # find range provided x belongs to
         def get_range(x) -> int:
-            i = 0
-            for x_node in self.X_NODES:
-                if x < x_node: i += 1
-                else: break
-            return i
+            for i, _ in enumerate(self.X_NODES[:-1]):
+                if self.X_NODES[i] <= x < self.X_NODES[i+1]: return i
+            raise IndexError
         
-        range_idx = get_range(x)
 
         # create shorter and more readable variable names
         x_i = self.X_NODES
@@ -153,7 +151,7 @@ class CubSplineMethod(InterpolationMethod):
         d_S_i = lambda x, i:\
             b[i] + 2*c[i]*(x - x_i[i]) + 3**d[i]*(x - x_i[i])**2
 
-        return d_S_i(x=x, i=range_idx)
+        return d_S_i(x=x, i=get_range(x))
 
     def compute_d_for_range(self, x_range):
         # here we assume that provided range step is smaller 
@@ -165,16 +163,15 @@ class CubSplineMethod(InterpolationMethod):
         # to resolve range each given x belongs to
         # (like, single condition instead of O(n) get_range() in methods for single x
         # it is not something one should bother when computing S(x) for single x, but for huge amounts of x points
-        # this is something to be aware of and reason for small step of x_range, in order to avoid overlap)
+        # this is something to be aware of and the reason for small step of x_range, in order to avoid overlap)
         # I just don't want to burn my processor
         # upd. I see how unompimized methods may load hardware now
         # so far, splines are computed faster than Lagrange polynomials, 
         # latter required a couple of minutes to compute 1000 times
-        #  for advanced part while consuming lots of RAM and 
+        # for advanced part while consuming lots of RAM and 
         # increasing CPU frequency up to 4.2MHz (which is not the highest possible 4.8,
         # but the fans of my laptop began to spin and scared me)
 
-        # iterate through range, increasing current range if needed
         current_range = 0
         d_spline_values = np.zeros_like(x_range, dtype=np.float64)
 

@@ -25,6 +25,8 @@ class PlotArtist:
         # also add dotted grid
         self.AX.grid(linestyle=':')
         self.AX.set_ylim(3, 4)
+        self.AX.tick_params(axis='both', which='major', labelsize=20)
+        self.AX.tick_params(axis='both', which='minor', labelsize=14)
 
     def plot_from_arrays(self, x: np.ndarray, *fx, style:dict = DEFSTYLE) -> None:
         '''

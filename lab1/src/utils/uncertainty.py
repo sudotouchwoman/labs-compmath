@@ -14,10 +14,42 @@ handler.setFormatter(formatter)
 log.addHandler(handler)
 print(f'Writing log to {LOGFILE}')
 
-from .interpolate import load_nodes, LagrangeMethod, CubSplineMethod
-from .plotting import PlotArtist
+# choose which method to use and change its name accordingly in `produce_polynoms() method`
+# shame on me, should have found out a way to pass this param
+# (actually, it is possible to pass class name as an argument, but it seemed too messy
+# then, it is possible to store class name in json and do eval()
+# well, it is an option but sounds kinda cringe and insecure, one should better avoid eval() wherever possible
+# that's why this feature was left as it is ¯\_(ツ)_/¯)
+
+from .interpolate import load_nodes, LagrangeMethod, CubSplineMethod # import classes used for interpolation
+from .plotting import PlotArtist # import plotting routines
+
+def load_config(config_path:str) -> dict:
+    '''
+        Load `json` file from provided location and parse it into config `dict`
+    '''
+    import json
+    with open(config_path, 'r') as nodes_file:
+        settings = json.loads(nodes_file.read())
+    log.debug(msg=f'Collected settings from {config_path}')
+    return settings
+    
 
 class SubsetTester:
+    '''
+        Base class for testing consequenses of errors in input data
+
+        1. Loads a bunch of settings (mu, sigma for Z, 
+        number of random vectors, interpolation range bounds)
+
+        1. Creates set of random vectors of needed size
+
+        1. Interpolates each one using provided method
+
+        1. Plots results
+
+        See `X_analysis` and `Y_analysis` functions below, those 
+    '''
     SETTINGS = None
     CI = None
     AVG = None
@@ -34,10 +66,10 @@ class SubsetTester:
         self.ARTIST = PlotArtist()
 
     def produce_vectors(self) -> None:
-        pass
+        raise NotImplementedError
 
     def produce_polynoms(self) -> None:
-        pass
+        raise NotImplementedError
 
     def compute_CI(self) -> None:
         log.debug(msg=f'Computes confidence interval for each x value (using uniformly distributed values within {self.SETTINGS["BOUNDS"]}, step {self.SETTINGS["STEP"]}')
@@ -47,7 +79,7 @@ class SubsetTester:
         # compute confidence interval as
         # [mean - T*sigma; mean + T*sigma], thanks to scipy
         for ith_slice in list(zip(*self.POLYNOM_VALUES)):
-            self.CI.append( stats.norm.interval(self.SETTINGS['q'], loc=np.mean(ith_slice), scale=np.std(ith_slice)) )
+            self.CI.append( stats.norm.interval(self.SETTINGS['q'], loc=np.mean(ith_slice), scale=stats.sem(ith_slice)) )
             self.AVG.append( np.mean(ith_slice) )
 
     def draw_results(self) -> None:
@@ -66,11 +98,13 @@ class SubsetTester:
 
         ARTIST.add_plot(x_range, lower_bound, {'color': '#ff6d71', 'linestyle': ':'})
         ARTIST.add_plot(x_range, upper_bound, {'color': '#ff6d71', 'linestyle': ':'})
-        ARTIST.fill_between(x_range, lower_bound, upper_bound)
+        # uncomment to fill area between CI bounds
+        #ARTIST.fill_between(x_range, lower_bound, upper_bound)
         ARTIST.add_plot(x_range, self.AVG, {'color': '#3a66c5', 'linestyle': '--'})
         ARTIST.plot_points(self.NODES['x'], self.NODES['y'])
 
         # plot several polynoms from subset
+        # comment in case you wish to fill CI without messing everything up
         for i, ith_slice in enumerate(self.POLYNOM_VALUES):
             if i % 100 != 0: continue
             ARTIST.add_plot(x_range, ith_slice, {'color': '#91C46C', 'linestyle': ':'})
@@ -79,18 +113,6 @@ class SubsetTester:
         ARTIST.save_as(self.SETTINGS['PLOTNAME'])
         log.info(msg=f'Plots saved as {self.SETTINGS["PLOTNAME"]}')
         
-
-        
-    
-def load_config(config_path:str) -> dict:
-    '''
-        Load `json` file from provided location and parse it into config `dict`
-    '''
-    import json
-    with open(config_path, 'r') as nodes_file:
-        settings = json.loads(nodes_file.read())
-    log.debug(msg=f'Collected settings from {config_path}')
-    return settings
 
 class UncertainX(SubsetTester):
     X_VECTORS = None
@@ -103,6 +125,7 @@ class UncertainX(SubsetTester):
             Error settings are gathered from `SETTINGS` attribute
         '''
         log.debug(msg=f'Generates random X vectors ({self.SETTINGS["VECTORS"]})')
+        
         def generate_random_vectors(initial, n: int):
             SETINGS = self.SETTINGS
             for i in range(n):
@@ -112,7 +135,8 @@ class UncertainX(SubsetTester):
                 yield random_vector
         
         self.X_VECTORS = np.array( [vec for vec in generate_random_vectors(self.NODES['x'], self.SETTINGS['VECTORS'])] )
-        self.Y_VECTOR = np.array(self.NODES['y'])        
+        self.Y_VECTOR = np.array(self.NODES['y']) 
+        log.debug(msg=f'Generated random vectors')
     
     def produce_polynoms(self) -> None:
         '''
@@ -124,11 +148,10 @@ class UncertainX(SubsetTester):
         limits = self.SETTINGS['BOUNDS']
 
         # create array of all values to compute for
-        # note that for X case bounds are generally narrower
-        # as interpolation ranges for each X instanse do vary actually
         x_range = np.arange(start=limits[0], stop=limits[1] + step, step=step)
         
         for sample in self.X_VECTORS:
+            # change CubsplineMethod to LagrangeMethod, if needed
             model = CubSplineMethod(sample, self.Y_VECTOR)
             self.POLYNOM_VALUES.append( model.compute_for_range(x_range) )
         
@@ -144,6 +167,7 @@ class UncertainH(SubsetTester):
             Error settings are gathered from `SETTINGS` attribute
         '''
         log.debug(msg=f'Generates random Y vectors ({self.SETTINGS["VECTORS"]})')
+        
         def generate_random_vectors(initial, n: int):
             SETINGS = self.SETTINGS
             for i in range(n):
@@ -154,6 +178,7 @@ class UncertainH(SubsetTester):
         
         self.X_VECTOR = np.array(self.NODES['x'])
         self.Y_VECTORS = np.array( [vec for vec in generate_random_vectors(self.NODES['y'], self.SETTINGS['VECTORS'])] )
+        log.debug(msg=f'Generated random vectors')
         
     
     def produce_polynoms(self) -> None:
@@ -166,13 +191,12 @@ class UncertainH(SubsetTester):
         limits = self.SETTINGS['BOUNDS']
         
         # create array of all values to compute for
-        # in this case (Y contains errors) interpolation range 
-        # is the same as x are accurate (and, accordingly, do not vary)
         x_range = np.arange(start=limits[0], stop=limits[1] + step, step=step)
         
         for sample in self.Y_VECTORS:
-                model = CubSplineMethod(self.X_VECTOR, sample)
-                self.POLYNOM_VALUES.append( model.compute_for_range(x_range) )
+            # change CubsplineMethod below to LagrangeMethod, if needed
+            model = CubSplineMethod(self.X_VECTOR, sample)
+            self.POLYNOM_VALUES.append( model.compute_for_range(x_range) )
 
 def X_analysis(config: dict) -> None:
     # complete pipeline for the case when x values contain errors
@@ -187,7 +211,7 @@ def X_analysis(config: dict) -> None:
     log.info(msg=f'Task finished')
 
 def H_analysis(config: dict) -> None:
-    # complete pipeline for the case when h(x) (may be referred as y or Y) values contain errors
+    # complete pipeline for the case when h(x) (may be referred to as y or Y) values contain errors
     log.info(msg=f'New task: perform analysis using {UncertainH}')
     log.debug(msg=f'Usage: {config}')
 
