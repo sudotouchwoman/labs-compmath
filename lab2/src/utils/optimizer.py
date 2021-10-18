@@ -1,6 +1,8 @@
 from scipy.optimize import root
+from functools import lru_cache
 import numpy as np
 
+@lru_cache(maxsize=5)
 def find_constants(endpoint: tuple):
     xa, ya = endpoint
 

@@ -24,7 +24,7 @@ class PlotArtist:
         # and messed up entire plot. It just looks better in this way
         # also add dotted grid
         self.AX.grid(linestyle=':')
-        self.AX.set_ylim(3, 4)
+        # self.AX.set_ylim(1e-5, 1e7)
         self.AX.tick_params(axis='both', which='major', labelsize=20)
         self.AX.tick_params(axis='both', which='minor', labelsize=14)
 
@@ -61,6 +61,7 @@ class PlotArtist:
 
             by default, figures are saved in `svg` format for better quality, but this property can be overridden
         '''
+        self.AX.legend(loc='best')
         self.CANVAS.savefig(f'{filename}.{format}', format=format)
 
     def add_plot(self, x: np.ndarray, y:np.ndarray, style:dict = DEFSTYLE) -> None:
@@ -68,6 +69,14 @@ class PlotArtist:
             Add single plot to existing figure
         '''
         self.AX.plot(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'))
+
+    def add_log_plot(self, x: np.ndarray, y:np.ndarray, style:dict = DEFSTYLE) -> None:
+        '''
+            Add single plot to existing figure
+        '''
+        self.AX.scatter(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'), label=style.get('legend', 'F(x)'))
+        self.AX.set_yscale('log')
+        self.AX.set_xscale('log')
 
     def fill_between(self, x, *curves, style:dict = {'alpha': 0.5, 'color':'#c4c4c4'}):
         '''
