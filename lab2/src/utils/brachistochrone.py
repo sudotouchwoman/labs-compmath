@@ -1,3 +1,8 @@
+'''
+Brachistochrone routines
+
+`BrachistochroneApproximator` class wraps model creation and 
+'''
 import logging
 import os
 from scipy.integrate import quad
@@ -29,7 +34,7 @@ def load_boundary_conds(filepath: str):
     return config
 
 class BrachistochroneApproximator:
-    X_NODES = None
+    T_NODES = None
     INTEGRAND = None
     SETTINGS = None
 
@@ -75,7 +80,7 @@ class BrachistochroneApproximator:
 
         INTEGRAND = get_integrand(y_range=tuple(Y_NODES), dy_range=tuple(DY_NODES), xdt_range=tuple(Xdt_NODES))
 
-        self.X_NODES, self.INTEGRAND = X_NODES, INTEGRAND
+        self.T_NODES, self.INTEGRAND = T_NODES, INTEGRAND
 
         log.info(msg=f'Model is set up')
         log.info(msg=f'Collected parameters:\n\
@@ -84,11 +89,19 @@ class BrachistochroneApproximator:
             dY nodes:\t{DY_NODES} ({len(DY_NODES)} items)\n\
             T nodes:\t{T_NODES} ({len(T_NODES)} items)\n\
             Integrand:\t{INTEGRAND} ({len(INTEGRAND)} items)')
+    
+    def compare_methods(self):
+        log.info(msg=f'Compares trapezoid and Simpson methods and logs results')
+        
+        T_NODES, INTEGRAND = self.T_NODES, self.INTEGRAND
+        C, T = self.get_constants()
+        n = self.SETTINGS['N']['max']
         
         integral_values_trapezoid = []
         integral_values_simpson = []
         n_values = []
-        reference = np.sqrt(C) * (2*T - np.sin(2*T)) / 20
+        divideby2g = lambda : np.sqrt(1 / 20)
+        reference = np.sqrt(2 * C / 10) * T
         log.info(msg=f'Reference value is: {reference}')
 
         for nodes in range(3, 10001, 100):
@@ -96,34 +109,35 @@ class BrachistochroneApproximator:
             # log.debug(msg=f'Selected:\nt:{x_selected}\nIntegrand:{y_selected}')
             integral_value = composite_trapezoid_ranged(x_selected, y_selected, n=nodes)
             n_values.append(nodes)
-            integral_values_trapezoid.append( reference - (integral_value / 20))
-            log.info(msg=f'min F[y] computed for {nodes} nodes (trapezoid): {integral_value / 20}')
+            integral_values_trapezoid.append( reference - integral_value * divideby2g())
+            log.info(msg=f'min F[y] computed for {nodes} nodes (trapezoid): {integral_value * divideby2g()}')
             integral_value = composite_simpson_ranged(x_selected, y_selected, n=nodes)
-            integral_values_simpson.append( reference - (integral_value / 20))
-            log.info(msg=f'min F[y] computed for {nodes} nodes (simpson): {integral_value / 20}')
+            integral_values_simpson.append( reference - integral_value * divideby2g())
+            log.info(msg=f'min F[y] computed for {nodes} nodes (simpson): {integral_value * divideby2g()}')
         
         from .plotting import PlotArtist
         Artist = PlotArtist()
         Artist.add_log_plot(n_values, integral_values_trapezoid, style={
-        'legend':'Trapezoid',
+        'legend':'Trapezoid error',
         'color':'#67CC8E',
         'linestyle':'-'
-    })
+        })
         Artist.add_log_plot(n_values, integral_values_simpson, style={
-        'legend':'Simpson',
+        'legend':'Simpson error',
         'color':'#9250BC',
         'linestyle':'-'
-    })
+        })
         Artist.save_as('res/plots/integral')
         log.debug(msg=f'Saved integral figure')
 
 
         integral_all_nodes = composite_trapezoid_ranged(T_NODES, INTEGRAND, n=n)
-        log.info(msg=f'min F[y] computed for all nodes (trapezoid): {integral_all_nodes * (1 / 20)}')
+        log.info(msg=f'min F[y] computed for all nodes (trapezoid): {integral_all_nodes * divideby2g()}')
         # log.info(msg=f'min F[y] computed for all nodes (trapezoid): {integral_all_nodes}')
         integral_all_nodes = composite_simpson_ranged(T_NODES, INTEGRAND, n=n)
-        log.info(msg=f'min F[y] computed for all nodes (simpson): {integral_all_nodes * (1/20)}')
+        log.info(msg=f'min F[y] computed for all nodes (simpson): {integral_all_nodes * divideby2g()}')
         # log.info(msg=f'min F[y] computed for all nodes (simpson): {integral_all_nodes}')
+        log.info(msg=f'Modeling finished. Plot is saved at "res/plots/integral.svg"')
 
         
 

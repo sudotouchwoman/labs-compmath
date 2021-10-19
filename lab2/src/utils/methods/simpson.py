@@ -6,7 +6,7 @@ def composite_simpson(a: float, b: float, n: int, f) -> float:
     if f is None: raise ValueError
 
     x_range = np.linspace(a, b, n)
-    h = (b - a) / n
+    h = (b - a) / (n - 1)
 
     def sum_terms():
         yield x_range[0]
@@ -28,7 +28,7 @@ def composite_simpson_ranged(x_range: np.ndarray, y_range: np.ndarray, n: int) -
     if n < 1: raise ValueError
     if y_range.shape != x_range.shape: raise ValueError
 
-    h = (x_range[-1] - x_range[0]) / n
+    h = (x_range[-1] - x_range[0]) / (n - 1)
 
     def sum_terms_i():
         yield 0

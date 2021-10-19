@@ -68,7 +68,7 @@ class PlotArtist:
         '''
             Add single plot to existing figure
         '''
-        self.AX.plot(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'))
+        self.AX.plot(x, y, linestyle=style.get('linestyle','-'), color=style.get('color', '#5793FF'), label=style.get('legend', 'F(x)'))
 
     def add_log_plot(self, x: np.ndarray, y:np.ndarray, style:dict = DEFSTYLE) -> None:
         '''
