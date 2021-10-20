@@ -18,3 +18,10 @@ def find_constants(endpoint: tuple):
     solution = root(boundary_conds, [0.9, 1.0])
     return solution.x
     
+def find_upper_bound(C:float, a:float):
+
+        
+    f = lambda t: 0.5 * C * (2*t - np.sin(2*t)) - a 
+    solution = root(f, 0.9)
+    
+    return solution.x[0]

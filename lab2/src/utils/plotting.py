@@ -24,7 +24,7 @@ class PlotArtist:
         # and messed up entire plot. It just looks better in this way
         # also add dotted grid
         self.AX.grid(linestyle=':')
-        # self.AX.set_ylim(1e-5, 1e7)
+        # self.AX.set_ylim(1e-12, 1e12)
         self.AX.tick_params(axis='both', which='major', labelsize=20)
         self.AX.tick_params(axis='both', which='minor', labelsize=14)
 

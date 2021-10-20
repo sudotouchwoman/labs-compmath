@@ -12,7 +12,7 @@ import numpy as np
 from .methods.simpson import composite_simpson_ranged
 from .methods.trapezoid import composite_trapezoid_ranged
 from .methods.diff import derivative1
-from .optimizer import find_constants
+from .optimizer import find_constants, find_upper_bound
 
 LOGFILE = 'res/brachistochrone.log'
 log = logging.getLogger(__name__)
@@ -64,7 +64,8 @@ class BrachistochroneApproximator:
 
         C, T = self.get_constants()
         a = 1e-7
-        b = T
+        b = find_upper_bound(C=C, a=self.SETTINGS['X']['a'])
+        log.info(msg=f'Upper bound is {b}')
         n = self.SETTINGS['N']['max']
         fx, fy = self.set_parametrized_funcs(C=C)
 
@@ -102,19 +103,27 @@ class BrachistochroneApproximator:
         n_values = []
         divideby2g = lambda : np.sqrt(1 / 20)
         reference = np.sqrt(2 * C / 10) * T
-        log.info(msg=f'Reference value is: {reference}')
+        log.info(msg=f'Reference value is: {reference:e}')
 
         for nodes in range(3, 10001, 100):
             x_selected, y_selected = self.select_n(T_NODES, INTEGRAND, n=nodes)
             # log.debug(msg=f'Selected:\nt:{x_selected}\nIntegrand:{y_selected}')
             integral_value = composite_trapezoid_ranged(x_selected, y_selected, n=nodes)
-            n_values.append(nodes)
-            integral_values_trapezoid.append( reference - integral_value * divideby2g())
-            log.info(msg=f'min F[y] computed for {nodes} nodes (trapezoid): {integral_value * divideby2g()}')
+            step = (x_selected[-1] - x_selected[0]) / (nodes - 1)
+            log.debug(msg=f'Step is {step:e}')
+            n_values.append(step)
+            integral_values_trapezoid.append( np.abs(reference - integral_value * divideby2g()))
+            log.debug(msg=f'Trapezoid error is {integral_values_trapezoid[-1]:e}')
+            log.info(msg=f'min F[y] computed for {nodes} nodes (trapezoid): {integral_value * divideby2g() :e}')
             integral_value = composite_simpson_ranged(x_selected, y_selected, n=nodes)
-            integral_values_simpson.append( reference - integral_value * divideby2g())
-            log.info(msg=f'min F[y] computed for {nodes} nodes (simpson): {integral_value * divideby2g()}')
+            integral_values_simpson.append( np.abs(reference - integral_value * divideby2g()))
+            log.debug(msg=f'Simpson error is {integral_values_simpson[-1]:e}')
+            log.info(msg=f'min F[y] computed for {nodes} nodes (simpson): {integral_value * divideby2g() :e}')
         
+        log.info(msg=f'Items: trapezoid {len(integral_values_trapezoid)}')
+        log.info(msg=f'Items: simpson {len(integral_values_simpson)}')
+        log.info(msg=f'Items: step counts {len(n_values)}')
+
         from .plotting import PlotArtist
         Artist = PlotArtist()
         Artist.add_log_plot(n_values, integral_values_trapezoid, style={
