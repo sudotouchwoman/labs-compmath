@@ -28,6 +28,8 @@ def composite_simpson_ranged(x_range: np.ndarray, y_range: np.ndarray, n: int) -
     if n < 1: raise ValueError
     if y_range.shape != x_range.shape: raise ValueError
 
+    if n % 2 == 0: n -= 1
+
     h = (x_range[-1] - x_range[0]) / (n - 1)
 
     def sum_terms_i():

@@ -21,5 +21,5 @@ def derivative1(x_nodes, y_nodes) -> np.array:
             yield dx(i)
         yield dxn()
 
-    d1_nodes = np.array([dx for dx in d1_generator()])
+    d1_nodes = np.array(list(d1_generator()))
     return d1_nodes

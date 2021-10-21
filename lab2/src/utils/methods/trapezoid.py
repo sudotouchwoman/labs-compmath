@@ -25,12 +25,12 @@ def composite_trapezoid_ranged(x_range: np.ndarray, y_range: np.ndarray, n: int)
     h = (x_range[-1] - x_range[0]) / (n - 1)
 
     def sum_terms_i():
-        yield 0
+        yield y_range[0]
         for i in range(1, n - 1):
-            yield i
-            yield i
-        yield n - 1
+            yield y_range[i]
+            yield y_range[i]
+        yield y_range[n - 1]
 
-    approximation = (h / 2) * sum([y_range[i] for i in sum_terms_i()])
+    approximation = (h / 2) * sum(list(sum_terms_i()))
     return approximation
     
