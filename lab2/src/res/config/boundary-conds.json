@@ -10,7 +10,7 @@
     "logspace":{
         "min": 1,
         "max": 4,
-        "items": 50
+        "items": 20
     },
     "G": 9.8
 }

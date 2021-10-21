@@ -2,7 +2,7 @@ import numpy as np
 
 def composite_trapezoid(a: float, b: float, n: int, f) -> float:
     if a > b: raise ValueError
-    if n < 1: raise ValueError
+    if n < 2: raise ValueError
     if f is None: raise ValueError
 
     x_range = np.linspace(a, b, n)
@@ -19,7 +19,7 @@ def composite_trapezoid(a: float, b: float, n: int, f) -> float:
     return approximation
 
 def composite_trapezoid_ranged(x_range: np.ndarray, y_range: np.ndarray, n: int) -> float:
-    if n < 1: raise ValueError
+    if n < 2: raise ValueError
     if y_range.shape != x_range.shape: raise ValueError
 
     h = (x_range[-1] - x_range[0]) / (n - 1)
