@@ -2,17 +2,20 @@
 Brachistochrone routines
 
 `BrachistochroneApproximator` class wraps model creation and methods comparison
+`BrachistochroneNodeProvider` contains static methods to produce node collections needed during the experiment
 '''
 import logging
 import os
 import numpy as np
+from abc import ABC
 
 from .methods.simpson import composite_simpson_ranged
 from .methods.trapezoid import composite_trapezoid_ranged
 from .optimizer import find_constants
+from .methods.plotting import PlotArtist
 from . import load_boundary_conds
 
-LOGFILE = 'res/brachistochrone.log'
+LOGFILE = 'res/error.log'
 log = logging.getLogger(__name__)
 DEBUGLEVEL = os.getenv('DEBUG_LEVEL','DEBUG')
 log.setLevel(getattr(logging, DEBUGLEVEL))
@@ -24,38 +27,47 @@ log.addHandler(handler)
 print(f'Writing log to {LOGFILE}')
 
 class BrachistochroneErrorComputer:
+    '''
+    This class contains methods to create needed sets of nodes, pick specified number of latter,
+    compute simpson and trapezoid quadratures and compare their absolute errors
+
+    It utilizes `NodeProvider` class to easily produce certain nodes for brachistochrone integrand
+    '''
     SETTINGS = None
 
     def __init__(self, filepath: str) -> None:
+        # config contains such parameters as 
+        # brachistochrone endpoint, node range to use in comparison, 
+        # here it is assumed that 
+        # the optimal function is known and is the parametrized cycloid 
+        # (thus we need to compute C and T from the boundary condition)
         log.debug(msg=f'Tries to load config from "{filepath}"')
         self.SETTINGS = load_boundary_conds(filepath)
-        self.NODE_PROVIDER = NodeProvider()
         log.debug(msg=f'Config loaded')
 
-    def get_parametrized_funcs(self, C):
-        log.debug(msg=f'Sets functions for x and y for parameter t')
-        funcs = (
-            lambda t: C * (t - 0.5 * np.sin(2*t)),
-            lambda t: C * (0.5 - 0.5 * np.cos(2*t))
-        )
-        return funcs
-
     def set_model(self, dtype = np.float64):
+        '''unpack settings, create t (independent parameter variable)
+         and compute node collections for 
+        y(t), x(t), x'(t), y'(t), y'(x), integrand(t)'''
+        
         log.info(msg=f'Setting up model')
 
         x_a, y_a = self.SETTINGS['Boundary-condition']['x'], self.SETTINGS['Boundary-condition']['y']
 
-        C, T = self.NODE_PROVIDER.get_constants(x_a, y_a)
-        a = dtype(1e-7)
+        C, T = BrachistochroneNodeProvider.get_constants(x_a, y_a)
+        a = dtype(self.SETTINGS['Boundary-condition']['t0'])
         b = dtype(T)
         n = self.SETTINGS['N']['max']
-        fx, fy = self.get_parametrized_funcs(C)
+        fx, fy = BrachistochroneNodeProvider.get_parametrized_funcs(C)
 
 
-        X_NODES, Y_NODES, T_NODES = self.NODE_PROVIDER.get_nodes_from_parameter(a=a, b=b, n=n, fy=fy, fx=fx)
-        YdX_NODES = self.NODE_PROVIDER.get_ydx_from_parameter(t_range=tuple(T_NODES))
-        Xdt_NODES = self.NODE_PROVIDER.get_xdt_from_parameter(t_range=tuple(T_NODES))
-        INTEGRAND = self.NODE_PROVIDER.get_integrand(y_range=tuple(Y_NODES), dy_range=tuple(YdX_NODES), xdt_range=tuple(Xdt_NODES))
+        X_NODES, Y_NODES, T_NODES = BrachistochroneNodeProvider.get_nodes_from_parameter(a=a, b=b, n=n, fy=fy, fx=fx)
+        YdX_NODES = BrachistochroneNodeProvider.get_ydx_from_parameter(t_range=tuple(T_NODES))
+        Xdt_NODES = BrachistochroneNodeProvider.get_xdt_from_parameter(t_range=tuple(T_NODES), C=C)
+        INTEGRAND = BrachistochroneNodeProvider.get_integrand(
+            y_range=tuple(Y_NODES),
+            dy_range=tuple(YdX_NODES),
+            xdt_range=tuple(Xdt_NODES))
 
         self.T_NODES, self.INTEGRAND = T_NODES, INTEGRAND
         self.C, self.T = C, T
@@ -69,60 +81,41 @@ class BrachistochroneErrorComputer:
             Integrand:\t{INTEGRAND} ({len(INTEGRAND)} items)')
     
     def compare_methods(self, dtype=np.float64) -> tuple:
-        log.info(msg=f'Compares trapezoid and Simpson methods and logs results')
+        '''called after `set_model`, this method 
+        repeatedly computes quadratures and absolute error, 
+        returns results to be later fed to `plot_errors_logscale`'''
         
+        log.info(msg=f'Compares trapezoid and Simpson methods and logs results')
+
         T_NODES, INTEGRAND = self.T_NODES, self.INTEGRAND
         C, T = self.C, self.T
-        n = self.SETTINGS['N']['max']
         G = dtype(self.SETTINGS['G'])
-        
-        def select_n(x, y, n: int) -> tuple:
-            if n < 1: raise ValueError
-            h = (x[-1] - x[0]) / (n - 1)
-            y_selected = []
-
-            def n_items_generator():
-                for i in range(n):
-                    # log.debug(msg=f'i = {i} looks for {x[0] + h * i}')
-                    nearest, i_nearest = find_nearest(x, x[0] + h * i)
-                    # log.debug(msg=f'Nearest is {nearest}')
-                    y_selected.append(y[i_nearest])
-                    yield nearest
-
-            x_selected = np.array(list(n_items_generator()))
-            y_selected = np.asarray(y_selected)
-            return x_selected, y_selected
-
-
-        def find_nearest(array: np.array, value: float) -> tuple:
-            idx = np.searchsorted(array, value, side='left')
-            if idx > 0 and (idx == len(array) or np.fabs(value - array[idx-1]) < np.fabs(value - array[idx])):
-                return array[idx - 1], idx - 1
-            else:
-                return array[idx], idx
+        t0 = self.SETTINGS['Boundary-condition']['t0']
 
         errors_trapezoid = []
         errors_simpson = []
         n_values = []
         # reference is computed from analytical formulae
         # at last I started using 1e-7 as lower bound
-        # thus fixed error plots
-        reference = np.sqrt(2 * C / G) * (T - 1e-7)
+        # this fixed error plots and produced unavoidable error
+        reference = np.sqrt(2 * C / G) * (T - t0)
         functional = lambda x: x / np.sqrt(2 * G)
         get_error = lambda x : np.abs( x - reference )
 
         log.info(msg=f'Reference value is: {reference:e}')
         
         logspace_settings = self.SETTINGS['logspace']
+        # create logspace array to finely plot on logscale
         absciasses_logspace = np.logspace(
             logspace_settings['min'],
             logspace_settings['max'],
             logspace_settings['items'],
             dtype=int)
-        # absciasses_logspace = np.arange(11, 9999 + 100, 100, dtype=int)
 
         for nodes in absciasses_logspace:
-            x_selected, y_selected = select_n(T_NODES, INTEGRAND, n=nodes)
+            # comparison loop: compute quadratures and append to corresponding lists
+            # make use of lambdas defined above
+            x_selected, y_selected = BrachistochroneNodeProvider.select_n(T_NODES, INTEGRAND, n=nodes)
             
             step = (x_selected[-1] - x_selected[0]) / (nodes - 1)
             n_values.append(step)
@@ -137,10 +130,11 @@ class BrachistochroneErrorComputer:
         return n_values, errors_simpson, errors_trapezoid
 
 
-    def plot_log_errors(self, absciasses, simpson_error, trapeziod_error):
-
+    def plot_errors_logscale(self, absciasses, simpson_error, trapeziod_error):
+        # plot absolute error for given absciasses and ordinate errors
+        # utilize `PlotArtist` class collected in `compare_methods`
         log.info(msg=f'Plots errors and saves results')
-        from .plotting import PlotArtist
+        
         Artist = PlotArtist()
         Artist.add_log_plot(absciasses, trapeziod_error, style={
         'legend':'Trapezoid error',
@@ -157,26 +151,31 @@ class BrachistochroneErrorComputer:
         log.debug(msg=f'Saved figure of errors ')
         log.info(msg=f'Modeling finished. Plot is saved at "res/plots/absolute-error.svg"')
 
-class NodeProvider:
-    def __init__(self) -> None:
-        pass
 
-    def get_constants(self, x_a, y_a):
-            log.debug(msg=f'Computes arbitrary constants of model (C and T)')
+class BrachistochroneNodeProvider(ABC):
 
-            log.debug(msg=f'The endpoint is {x_a}{y_a}')
+    @staticmethod
+    def get_constants(x_a, y_a):
+        log.debug(msg=f'Computes arbitrary constants of model (C and T)')
+        log.debug(msg=f'The endpoint is ({x_a},{y_a})')
 
-            C, T = find_constants((x_a, y_a))
-            log.info(msg=f'Found constants: C = {C}, T = {T}')
-            self.C, self.T = C, T
-            return C, T
+        C, T = find_constants((x_a, y_a))
+        log.info(msg=f'Found constants: C = {C}, T = {T}')
+        return C, T
 
-    def set_constants(self, C, T):
-        if C is None: raise ValueError
-        if T is None: raise ValueError
-        self.C, self.T = C, T
+    @staticmethod
+    def get_parametrized_funcs(C):
+        # the funcs tuple contains x(t) and y(t) expressions
+        # these are required to be fed to node provider
+        log.debug(msg=f'Sets functions for x and y for parameter t')
+        funcs = (
+            lambda t: C * (t - 0.5 * np.sin(2*t)),
+            lambda t: C * (0.5 - 0.5 * np.cos(2*t))
+        )
+        return funcs
 
-    def get_nodes_from_parameter(self, a, b, n: int, fy, fx) -> tuple:
+    @staticmethod
+    def get_nodes_from_parameter(a, b, n: int, fy, fx) -> tuple:
         log.debug(msg=f'Fits nodes on given range [{a};{b}] ({n} nodes)')
         
         if a > b: raise ValueError
@@ -191,8 +190,9 @@ class NodeProvider:
         log.debug(msg=f'Node collections computed')
         return x_range, y_range, t_range
 
-    def get_ydx_from_parameter(self, t_range: tuple):
-        log.debug(msg=f'Computes y\'(x) for nodes on given range')
+    @staticmethod
+    def get_ydx_from_parameter(t_range: tuple):
+        log.debug(msg=f'Computes y\'(x) for nodes on t grid')
 
         def derivative_generator():
             dydx = lambda t: np.sin(2*t) / (1 - np.cos(2*t))
@@ -201,18 +201,19 @@ class NodeProvider:
 
         return np.array(list(derivative_generator()))      
 
-    def get_xdt_from_parameter(self, t_range: tuple) -> np.array:
+    @staticmethod
+    def get_xdt_from_parameter(t_range: tuple, C) -> np.array:
+        log.debug(msg=f'Computes xdt for nodes on t grid')
 
         def xdt_generator():
-            C = self.C
             xdt = lambda t: C * (1 - np.cos(2*t))
             for t in t_range:
                 yield xdt(t)
 
         return np.array(list(xdt_generator()))
 
-
-    def get_integrand(self, y_range: tuple, dy_range: tuple, xdt_range: tuple) -> np.array:
+    @staticmethod
+    def get_integrand(y_range: tuple, dy_range: tuple, xdt_range: tuple) -> np.array:
         log.debug(msg=f'Computes integrand values for grid')
 
         def integrand_generator():
@@ -221,3 +222,26 @@ class NodeProvider:
                 yield integrand(i)
         
         return np.array(list(integrand_generator()))
+
+    @staticmethod
+    def find_nearest(array: np.array, value: float) -> tuple:
+        idx = np.searchsorted(array, value, side='left')
+        if idx > 0 and (idx == len(array) or np.fabs(value - array[idx-1]) < np.fabs(value - array[idx])):
+            return array[idx - 1], idx - 1
+        else:
+            return array[idx], idx
+
+    @staticmethod
+    def select_n(x, y, n: int) -> tuple:
+        if n < 1: raise ValueError
+        h = (x[-1] - x[0]) / (n - 1)
+
+        y_selected = np.zeros(n)
+        x_selected = np.zeros(n)
+
+        for i in range(n):
+            _, i_nearest = BrachistochroneNodeProvider.find_nearest(x, x[0] + h * i)
+            y_selected[i] = y[i_nearest]
+            x_selected[i] = x[i_nearest]
+
+        return x_selected, y_selected

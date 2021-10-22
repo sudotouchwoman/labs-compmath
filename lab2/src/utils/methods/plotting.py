@@ -9,7 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 DEFSTYLE = {
-        'legend':['$\it{F(x)}$'],
+        'legend': 'F(x)',
         'color':'#67CC8E',
         'linestyle':'--'
     }

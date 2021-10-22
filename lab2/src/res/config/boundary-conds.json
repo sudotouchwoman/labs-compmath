@@ -1,7 +1,8 @@
 {
     "Boundary-condition":{
         "x": 2,
-        "y": 1
+        "y": 1,
+        "t0": 1e-4
     },    
     "N":{
         "min": 3,
@@ -10,7 +11,7 @@
     "logspace":{
         "min": 1,
         "max": 4,
-        "items": 20
+        "items": 100
     },
     "G": 9.8
 }

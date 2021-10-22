@@ -1,8 +1,8 @@
-from utils import brachistochrone
+from utils import error
 
 if __name__ == '__main__':
-    approximator = brachistochrone.BrachistochroneErrorComputer('res/config/boundary-conds.json')
+    approximator = error.BrachistochroneErrorComputer('res/config/boundary-conds.json')
     approximator.set_model()
     results = approximator.compare_methods()
-    approximator.plot_log_errors(*results)
+    approximator.plot_errors_logscale(*results)
     
