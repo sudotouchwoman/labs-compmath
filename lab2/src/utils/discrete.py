@@ -1,3 +1,10 @@
+'''
+This module provides interface for advanced part of the problem
+
+Especially the one for discretization of the brachistochrone
+by linear interpolation and composite simpson method
+
+'''
 import numpy as np
 import logging
 import os
@@ -5,7 +12,6 @@ import os
 from .methods.plotting import PlotArtist
 from .methods.linearinterp import LinearMethod
 from .methods.simpson import composite_simpson
-from .methods.trapezoid import composite_trapezoid
 from .error import BrachistochroneNodeProvider
 from . import load_boundary_conds
 
@@ -26,30 +32,28 @@ class DiscreteOptimizer:
         self.SETTINGS = load_boundary_conds(filepath)
         log.debug(msg=f'Config loaded')
 
-    # def create_interpolants(self, dtype = np.float64):
-    #     log.info(msg=f'Produces interpolants')
-        
-    #     C, T = self.SETTINGS['constants']['C'], self.SETTINGS['constants']['T']
-    #     a = self.SETTINGS['lower-bound']
-    #     b = T
-
-    #     def discrete_models_generator():
-    #         pass
-
     def peek_plots(self):
+        # draft to make sure everything worked out
+        # use methods of `BrachistochroneNodeProvider` to produce nodes
+        # use `LinearMethod` to interpolate
         log.info(msg=f'Quick test of performance: compute and plot single interpolant along with the actual curve')
-        artist = PlotArtist()
 
-        C, T = self.SETTINGS['constants']['C'], self.SETTINGS['constants']['T']
+        # these are merely sample test values, not a big deal to use others
+        # the pipeline is pretty simular to one in `error` module
+        # the only difference is that
+        # now C and T are simply collected from config 
+        # (it is assumed that their values were computed in previous steps)
+        C, T = self.SETTINGS['C'], self.SETTINGS['T']
         a = self.SETTINGS['lower-bound']
         b = T
         n_int = 7
-        n_ipl = 4
-        nodes = 1000
+        n_ipl = 8
+        nodes = 1e3
 
+        # collect 1e3 nodes and select only n_ipl of them to fit the linear model
+        # basically, I could just plot the selected nodes (this should yield the same result),
+        # but here the very 'prediction' of the linear model was used
         fx, fy = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
-
-
         x_nodes, y_nodes, _ = BrachistochroneNodeProvider.get_nodes_from_parameter(a, b, nodes, fy=fy, fx=fx)
         x_selected, y_selected = BrachistochroneNodeProvider.select_n(x_nodes, y_nodes, n_ipl)
 
@@ -59,6 +63,8 @@ class DiscreteOptimizer:
         y_model = np.array([model.predict_y(x) for x in x_model])
 
         log.debug(msg=f'Computed, now plotting')
+        
+        artist = PlotArtist()
         artist.add_plot(x_nodes, y_nodes, style={
         'legend':'Brachistochrone',
         'color':'#962D3E',
@@ -72,9 +78,9 @@ class DiscreteOptimizer:
 
         plot_name = 'res/plots/interpolant'
         artist.save_as(plot_name)
+        
         log.info(msg=f'Plots saved at "{plot_name}.svg"')
         log.info(msg=f'Test finished')
-        
 
 
 class DiscreteModel:
