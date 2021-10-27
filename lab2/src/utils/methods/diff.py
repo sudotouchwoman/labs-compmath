@@ -1,3 +1,7 @@
+'''
+Function to numerically differentiate
+I thought it would be useful during the base pt, but analytic formulae turned out to be more accurate
+'''
 import numpy as np
 
 def derivative1(x_nodes, y_nodes) -> np.array:

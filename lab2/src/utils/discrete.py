@@ -112,30 +112,38 @@ class DiscreteOptimizer:
         # (use log scale for each axis)
         log.info(msg=f'Creates surface plot')
         fig = go.Figure(data=[go.Surface(
-            z=surface,
-            x=integration_nodes_space,
-            y=interpolation_nodes_space,
+            z=(surface),
+            x=(1 / integration_nodes_space),
+            y=(1 / interpolation_nodes_space),
             opacity=0.5,
             hovertemplate=
             '<b>Absolute error: %{z:e}</b>'+
-            '<br>Integration nodes: %{x}'+
-            '<br>Interpolation nodes: %{y}'+
+            '<br>Integration step: %{x:.4f}'+
+            '<br>Interpolation step: %{y:.4f}'+
             '<extra></extra>',
-            colorscale='Viridis',
+            colorscale='Plotly3',
             showscale=False)])
             
-        fig.update_traces(contours_z=dict(show=True, highlightcolor="limegreen", project_z=False),)
+        fig.update_traces(
+            contours_z=dict(show=False, project_z=False),
+            contours_x=dict(show=True, highlightcolor='lightgreen', project_x=False),
+            contours_y=dict(show=True, highlightcolor='lightgreen', project_y=False),)
         fig.update_layout(
             title='Absolute error surface',
             scene=dict(
-                xaxis = dict(type='log' , nticks=4, range=[0,3],),
-                yaxis = dict(type='log' , nticks=4, range=[0,3],),
-                zaxis = dict(type='log' ,),
-                xaxis_title='Integration nodes',
-                yaxis_title='Interpolation nodes',
-                zaxis_title='Absolute error of approximation'),
+                xaxis = dict(type='log' , nticks=10, range=[-4, 0],),
+                yaxis = dict(type='log' , nticks=10, range=[-4, 0],),
+                zaxis = dict(type='log' , nticks=20),
+                xaxis_title='Integration step',
+                yaxis_title='Interpolation step',
+                zaxis_title='Absolute error of approximation (log)'),
                 width=1500,
                 height=900)
+
+        fig.update_coloraxes(
+            cmin=surface.min(),
+            cmax=surface.max(),
+            colorscale='Viridis')
 
         # plotly makes use of html and js for interactivity
         fig.write_html("res/plots/surface.html")

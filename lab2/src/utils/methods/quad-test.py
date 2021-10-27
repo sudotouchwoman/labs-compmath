@@ -1,10 +1,10 @@
-import numpy as np
 '''
 Perform simple accuracy test: integrate quadratures for exp(x)
 The results show that implemented methods have corresponding tangents
 It was also observed that if the function given is not quite smooth!
 For polynom of degree 2 simpson error scaled to 1e-13 almost instantly
 '''
+import numpy as np
 
 if __name__ == '__main__':
     from simpson import composite_simpson

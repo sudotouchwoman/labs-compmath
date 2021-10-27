@@ -1,17 +1,17 @@
 {
     "C": 1.034399843373137,
     "T": 1.754184384262122,
-    "t0": 1e-1,
-    "items": 1001,
+    "t0": 1e-0,
+    "items": 10000,
     "interpolation-nodes":{
         "min": 2e0,
-        "max": 1e3,
-        "items": 15
+        "max": 2e3,
+        "items": 20
     },
     "integration-nodes":{
         "min": 2e0,
-        "max": 1e3,
-        "items": 15
+        "max": 2e3,
+        "items": 20
     },
     "G": 9.8
 }
