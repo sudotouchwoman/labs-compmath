@@ -13,6 +13,7 @@ import os
 
 from .methods.linearinterp import LinearMethod
 from .methods.simpson import composite_simpson
+from .methods.trapezoid import composite_trapezoid
 from .error import BrachistochroneNodeProvider
 from . import load_boundary_conds
 
@@ -33,7 +34,7 @@ class DiscreteOptimizer:
         self.config = load_boundary_conds(filepath)
         log.debug(msg=f'Config loaded')
 
-    def create_surface(self, dtype=np.float64) -> tuple:
+    def create_surfaces(self, dtype=np.float64) -> tuple:
 
         log.info(msg=f'Creates surface of error')
 
@@ -77,73 +78,95 @@ class DiscreteOptimizer:
         n_generated_nodes = self.config['items']
 
         log.info(msg=f'Producing nodes')
-        fx, fy = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
-        x_nodes, y_nodes, _ = BrachistochroneNodeProvider.get_nodes_from_parameter(a, b, n_generated_nodes, fy=fy, fx=fx)
+        t_nodes = np.linspace(a, b, n_generated_nodes, dtype=dtype)
+        log.debug(msg=f'T nodes: {t_nodes}')
 
-        log.debug(msg=f'X nodes: {x_nodes}')
-        log.debug(msg=f'Y nodes: {y_nodes}')
+        # collect t nodes and define integrand as function of t 
+        # looking back, I facepalm myself for creating separate node collections for x(t), y(t), y'(x)
+        # like, I could just find the int(t) explicitly from the very beginning
+        # nevertheless, I would not refactor that pt now, too much time spent on that
+
+        xdt = lambda t: C * (1 - np.cos(2*t))
+        dydx = lambda t: np.sin(2*t) / (1 - np.cos(2*t))
+        y = lambda t: C * (0.5 - 0.5 * np.cos(2*t))
+
+        integrand = lambda t: np.sqrt( ( 1 + dydx(t)**2 ) / y(t) / 2 / G ) * xdt(t)
+        integrand_nodes = integrand(t_nodes)
 
         # compute the true functional minima (from analytical formulae)
         # define lambda for absolute error
-        reference = np.sqrt(2 * C / G) * (T - a)
+        reference = np.sqrt(2 * C / G) * (b - a)
         log.info(msg=f'Nodes collected, reference value is {reference:e}')
         abs_error = lambda x: np.abs( x - reference )
 
-        # init array for surface of the given shape
-        surface = np.zeros(shape=(ipl_items, int_items))
-        log.info(msg=f'Building the surface: the shape is {surface.shape}')
+        # init array for surfaces of the given shape
+        # (2 as there are 2 surfaces, simpson and trapezoid)
+        surfaces = np.zeros(shape=(ipl_items, int_items, 2))
+        log.info(msg=f'Building the surfaces: the shape is {surfaces.shape}')
 
         # fill the array iteratively,
         # each cell represents error for quadrature on given integration nodes number
         # and interpolation nodes number
         for i, ipl_nodes in enumerate(interpolation_nodes_space):
             for j, int_nodes in enumerate(integration_nodes_space):
-                approximator = DiscreteModel(x_nodes=x_nodes, y_nodes=y_nodes, n_int=int_nodes, n_ipl=ipl_nodes, G=G)
-                surface[i, j] = abs_error(approximator.approximate())
-                log.debug(msg=f'Error for {ipl_nodes} interpolation nodes and {int_nodes} integration nodes is {surface[i, j]:e}')
+                approximator = DiscreteModel(x_nodes=t_nodes, y_nodes=integrand_nodes, n_int=int_nodes, n_ipl=ipl_nodes)
+                surfaces[i, j] = abs_error(approximator.approximate())
 
         log.info(msg=f'Succesfully finished modeling')
-        return surface, integration_nodes_space, interpolation_nodes_space
+        return surfaces, integration_nodes_space, interpolation_nodes_space
 
-    def draw_surface(self, surface: np.ndarray, integration_nodes_space: np.ndarray, interpolation_nodes_space: np.ndarray):
+    def draw_surfaces(self, surfaces: np.ndarray, integration_nodes_space: np.ndarray, interpolation_nodes_space: np.ndarray):
 
         # use plotly to create great interactive surface 3d plot
         # from data collected in the previous method 
         # (use log scale for each axis)
+
         log.info(msg=f'Creates surface plot')
-        fig = go.Figure(data=[go.Surface(
-            z=(surface),
-            x=(1 / integration_nodes_space),
-            y=(1 / interpolation_nodes_space),
-            opacity=0.5,
-            hovertemplate=
-            '<b>Absolute error: %{z:e}</b>'+
-            '<br>Integration step: %{x:.4f}'+
-            '<br>Interpolation step: %{y:.4f}'+
-            '<extra></extra>',
-            colorscale='Plotly3',
-            showscale=False)])
+        fig = go.Figure(data=[
+            go.Surface(
+                name="Simpson",
+                z=surfaces[:,:,0],
+                x=integration_nodes_space,
+                y=interpolation_nodes_space,
+                opacity=0.8,
+                hovertemplate=
+                '<b>Absolute error (Simpson): %{z:e}</b>'+
+                '<br>Integration nodes: %{x}'+
+                '<br>Interpolation nodes: %{y}'+
+                '<extra></extra>',
+                colorscale='inferno',
+                showscale=False),
+            go.Surface(
+                name="Trapezoid",
+                z=surfaces[:,:,1],
+                x=integration_nodes_space,
+                y=interpolation_nodes_space,
+                opacity=0.4,
+                hovertemplate=
+                '<b>Absolute error (Trapezoid): %{z:e}</b>'+
+                '<br>Integration nodes: %{x}'+
+                '<br>Interpolation nodes: %{y}'+
+                '<extra></extra>',
+                colorscale='magenta',
+                showscale=False)
+                ])
             
         fig.update_traces(
             contours_z=dict(show=False, project_z=False),
-            contours_x=dict(show=True, highlightcolor='lightgreen', project_x=False),
-            contours_y=dict(show=True, highlightcolor='lightgreen', project_y=False),)
+            contours_x=dict(show=True, highlightcolor='white', project_x=False),
+            contours_y=dict(show=True, highlightcolor='white', project_y=False),)
+
         fig.update_layout(
             title='Absolute error surface',
             scene=dict(
                 xaxis = dict(type='log' , nticks=10, range=[-4, 0],),
                 yaxis = dict(type='log' , nticks=10, range=[-4, 0],),
-                zaxis = dict(type='log' , nticks=20),
-                xaxis_title='Integration step',
-                yaxis_title='Interpolation step',
-                zaxis_title='Absolute error of approximation (log)'),
+                zaxis = dict(type='log',),
+                xaxis_title='Integration nodes',
+                yaxis_title='Interpolation nodes',
+                zaxis_title='Absolute error'),
                 width=1500,
                 height=900)
-
-        fig.update_coloraxes(
-            cmin=surface.min(),
-            cmax=surface.max(),
-            colorscale='Viridis')
 
         # plotly makes use of html and js for interactivity
         fig.write_html("res/plots/surface.html")
@@ -163,14 +186,13 @@ class DiscreteOptimizer:
         C, T = self.config['C'], self.config['T']
         a = self.config['t0']
         b = T
-        n_int = 7
         n_ipl = 50
         nodes = 1000
 
         # collect 1e3 nodes and select only n_ipl of them to fit the linear model
         # basically, I could just plot the selected nodes (this should yield the same result),
         # but here the very 'prediction' of the linear model was used
-        fx, fy = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
+        fx, fy, _ = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
         x_nodes, y_nodes, t_range = BrachistochroneNodeProvider.get_nodes_from_parameter(a, b, nodes, fy=fy, fx=fx)
         x_selected, y_selected = BrachistochroneNodeProvider.select_n(x_nodes, y_nodes, n_ipl)
         ydx_nodes = BrachistochroneNodeProvider.get_ydx_from_parameter(t_range)
@@ -219,34 +241,24 @@ class DiscreteOptimizer:
 
 
 class DiscreteModel:
-    def __init__(self, x_nodes, y_nodes, n_int: int, n_ipl: int, G=9.8) -> None:
+    def __init__(self, x_nodes, y_nodes, n_int: int, n_ipl: int) -> None:
         self.X_NODES = np.asarray(x_nodes)
         self.Y_NODES = np.asarray(y_nodes)
         self.N_int = n_int
         self.N_ipl = n_ipl
-        self.G = G
 
-    def approximate(self, method=LinearMethod) -> float:
+    def approximate(self) -> float:
         # get the approximation of functional 
         # for provided configuration of interpolation and integration nodes
         X_NODES, Y_NODES = self.X_NODES, self.Y_NODES
-        G = self.G
         x_selected, y_selected = BrachistochroneNodeProvider.select_n(X_NODES, Y_NODES, self.N_ipl)
-        model = method().fit(x_selected, y_selected)
+        model = LinearMethod().fit(x_selected, y_selected)
 
-        @lru_cache(maxsize=4)
-        def integrand(x):
-            # use cache as within the simpson quadrature 
-            # the function is repeatedly applied to the current x node
-            # (4 times per even and 2 times per odd one)
-            result = np.sqrt( (1 + (model.predict_ydx(x))**2) / model.predict_y(x) )
-            # log.debug(msg=f'y(x) prediction for {x} is {model.predict_y(x)}')
-            # log.debug(msg=f'y\'(x) prediction for {x} is {model.predict_ydx(x)}')
-            # log.debug(msg=f'Integrand for {x} is {result}')
-            return result
+        @lru_cache(maxsize=1)
+        def integrand(t):
+            return model.predict_y(t)
 
-        functional = lambda x: x / np.sqrt( 2 * G )
-
-        approximation = composite_simpson(x_selected[0], x_selected[-1], self.N_int, integrand)
-        return functional(approximation)
+        simpson = composite_simpson(x_selected[0], x_selected[-1], self.N_int, integrand)
+        trapezoid = composite_trapezoid(x_selected[0], x_selected[-1], self.N_int, integrand)
+        return (simpson, trapezoid)
         

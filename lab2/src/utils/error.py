@@ -47,38 +47,25 @@ class BrachistochroneErrorComputer:
 
     def set_model(self, dtype = np.float64):
         '''unpack settings, create t (independent parameter variable)
-         and compute node collections for 
-        y(t), x(t), x'(t), y'(t), y'(x), integrand(t)'''
+         and compute node collections for integrand(t)'''
         
         log.info(msg=f'Setting up model')
 
-        x_a, y_a = self.SETTINGS['Boundary-condition']['x'], self.SETTINGS['Boundary-condition']['y']
+        boundary_condition = self.SETTINGS['Boundary-condition']
 
+        x_a, y_a = boundary_condition['x'], boundary_condition['y']
         C, T = BrachistochroneNodeProvider.get_constants(x_a, y_a)
-        a = dtype(self.SETTINGS['Boundary-condition']['t0'])
+        a = dtype(boundary_condition['t0'])
         b = dtype(T)
-        n = self.SETTINGS['N']['max']
-        fx, fy = BrachistochroneNodeProvider.get_parametrized_funcs(C)
+        nodes_total = self.SETTINGS['nodes_total']
 
-
-        X_NODES, Y_NODES, T_NODES = BrachistochroneNodeProvider.get_nodes_from_parameter(a=a, b=b, n=n, fy=fy, fx=fx)
-        YdX_NODES = BrachistochroneNodeProvider.get_ydx_from_parameter(t_range=tuple(T_NODES))
-        Xdt_NODES = BrachistochroneNodeProvider.get_xdt_from_parameter(t_range=tuple(T_NODES), C=C)
-        INTEGRAND = BrachistochroneNodeProvider.get_integrand(
-            y_range=tuple(Y_NODES),
-            dy_range=tuple(YdX_NODES),
-            xdt_range=tuple(Xdt_NODES))
-
+        T_NODES = np.linspace(a, b, nodes_total)
+        INTEGRAND = BrachistochroneNodeProvider.get_integrand_from_parameter(T_NODES, C=C)
+        
         self.T_NODES, self.INTEGRAND = T_NODES, INTEGRAND
         self.C, self.T = C, T
 
         log.info(msg=f'Model is set up')
-        log.info(msg=f'Collected parameters:\n\
-            X nodes:\t{X_NODES} ({len(X_NODES)} items)\n\
-            Y nodes:\t{Y_NODES} ({len(Y_NODES)} items)\n\
-            Ydx nodes:\t{YdX_NODES} ({len(YdX_NODES)} items)\n\
-            T nodes:\t{T_NODES} ({len(T_NODES)} items)\n\
-            Integrand:\t{INTEGRAND} ({len(INTEGRAND)} items)')
     
     def compare_methods(self, dtype=np.float64) -> tuple:
         '''called after `set_model`, this method 
@@ -104,12 +91,11 @@ class BrachistochroneErrorComputer:
 
         log.info(msg=f'Reference value is: {reference:e}')
         
-        logspace_settings = self.SETTINGS['logspace']
         # create logspace array to finely plot on logscale
-        absciasses_logspace = np.logspace(
-            logspace_settings['min'],
-            logspace_settings['max'],
-            logspace_settings['items'],
+        absciasses_logspace = np.geomspace(
+            self.SETTINGS['min'],
+            self.SETTINGS['max'],
+            self.SETTINGS['items'],
             dtype=int)
 
         for nodes in absciasses_logspace:
@@ -170,7 +156,9 @@ class BrachistochroneNodeProvider(ABC):
         log.debug(msg=f'Sets functions for x and y for parameter t')
         funcs = (
             lambda t: C * (t - 0.5 * np.sin(2*t)),
-            lambda t: C * (0.5 - 0.5 * np.cos(2*t))
+            lambda t: C * (0.5 - 0.5 * np.cos(2*t)),
+            lambda t: np.sin(2*t) / (1 - np.cos(2*t)),
+            lambda t: C * (1 - np.cos(2*t))
         )
         return funcs
 
@@ -182,10 +170,8 @@ class BrachistochroneNodeProvider(ABC):
         if n < 2: raise ValueError
         if fy is None or fx is None: raise ValueError
         t_range = np.linspace(a, b, n)
-        fy_v = np.vectorize(fy)
-        fx_v = np.vectorize(fx)
-        x_range = fx_v(t_range)
-        y_range = fy_v(t_range)
+        x_range = fx(t_range)
+        y_range = fy(t_range)
         
         log.debug(msg=f'Node collections computed')
         return x_range, y_range, t_range
@@ -194,34 +180,20 @@ class BrachistochroneNodeProvider(ABC):
     def get_ydx_from_parameter(t_range: tuple):
         log.debug(msg=f'Computes y\'(x) for nodes on t grid')
 
-        def derivative_generator():
-            dydx = lambda t: np.sin(2*t) / (1 - np.cos(2*t))
-            for t in t_range:
-                yield dydx(t)
+        ydx_f = lambda t: np.sin(2*t) / (1 - np.cos(2*t))
+        ydx = ydx_f(t_range)
 
-        return np.array(list(derivative_generator()))      
+        return ydx
 
     @staticmethod
-    def get_xdt_from_parameter(t_range: tuple, C) -> np.array:
-        log.debug(msg=f'Computes xdt for nodes on t grid')
-
-        def xdt_generator():
-            xdt = lambda t: C * (1 - np.cos(2*t))
-            for t in t_range:
-                yield xdt(t)
-
-        return np.array(list(xdt_generator()))
-
-    @staticmethod
-    def get_integrand(y_range: tuple, dy_range: tuple, xdt_range: tuple) -> np.array:
+    def get_integrand_from_parameter(t_range: tuple, C) -> np.array:
         log.debug(msg=f'Computes integrand values for grid')
 
-        def integrand_generator():
-            integrand = lambda i: np.sqrt((1 + dy_range[i]**2) / y_range[i]) * xdt_range[i]
-            for i, _ in enumerate(xdt_range):
-                yield integrand(i)
-        
-        return np.array(list(integrand_generator()))
+        _, yt, ydx, xdt = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
+        integrand_f = lambda t: np.sqrt((1 + ydx(t)**2) / yt(t)) * xdt(t)
+        integrand = integrand_f(t_range)
+
+        return integrand
 
     @staticmethod
     def find_nearest(array: np.array, value: float) -> tuple:
