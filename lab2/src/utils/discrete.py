@@ -186,13 +186,13 @@ class DiscreteOptimizer:
         C, T = self.config['C'], self.config['T']
         a = self.config['t0']
         b = T
-        n_ipl = 50
+        n_ipl = 5
         nodes = 1000
 
         # collect 1e3 nodes and select only n_ipl of them to fit the linear model
         # basically, I could just plot the selected nodes (this should yield the same result),
         # but here the very 'prediction' of the linear model was used
-        fx, fy, _ = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
+        fx, fy, *_ = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
         x_nodes, y_nodes, t_range = BrachistochroneNodeProvider.get_nodes_from_parameter(a, b, nodes, fy=fy, fx=fx)
         x_selected, y_selected = BrachistochroneNodeProvider.select_n(x_nodes, y_nodes, n_ipl)
         ydx_nodes = BrachistochroneNodeProvider.get_ydx_from_parameter(t_range)
@@ -205,38 +205,45 @@ class DiscreteOptimizer:
 
         log.debug(msg=f'Computed, now plotting')
 
+        # fig = go.Figure()
+        # fig.add_trace(go.Scatter(
+        #     x=x_model,
+        #     y=y_model,
+        #     mode='markers',
+        #     name=f'Linear (n = {n_ipl})'))
+
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=x_model,
-            y=y_model,
-            mode='lines',
-            name=f'Linear (n = {n_ipl})'))
+            x=x_nodes[1:],
+            y=np.diff(x_nodes),
+            mode='markers',
+            name=f'X diff (n = {n_ipl})'))
 
-        fig.add_trace(go.Scatter(
-            x=x_nodes,
-            y=y_nodes,
-            mode='lines',
-            name=f'Brachistochrone'))
+        # fig.add_trace(go.Scatter(
+        #     x=x_nodes,
+        #     y=y_nodes,
+        #     mode='lines',
+        #     name=f'Brachistochrone'))
 
-        fig.add_trace(go.Scatter(
-            x=x_model,
-            y=ydx_model,
-            mode='lines',
-            name=f'Approx derivative (n = {n_ipl})'))
+        # fig.add_trace(go.Scatter(
+        #     x=x_model,
+        #     y=ydx_model,
+        #     mode='lines',
+        #     name=f'Approx derivative (n = {n_ipl})'))
 
-        fig.add_trace(go.Scatter(
-            x=x_nodes,
-            y=ydx_nodes,
-            mode='lines',
-            name=f'True derivative'))
+        # fig.add_trace(go.Scatter(
+        #     x=x_nodes,
+        #     y=ydx_nodes,
+        #     mode='lines',
+        #     name=f'True derivative'))
 
         fig.update_layout(
-            title='Brachistochrone interpolation comparison',
+            title='X nodes diff (from np.diff)',
             autosize=True,
             width=1000,
             height=900)
-        fig.update_yaxes(range = [-0.5,1.5])
-        fig.write_html("res/plots/interpolant.html")
+        # fig.update_yaxes(range = [-0.5,1.5])
+        fig.write_html("res/plots/diff.html")
         log.info(msg=f'Test finished')
 
 

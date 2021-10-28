@@ -9,8 +9,8 @@ import os
 import numpy as np
 from abc import ABC
 
-from .methods.simpson import composite_simpson_ranged
-from .methods.trapezoid import composite_trapezoid_ranged
+from .methods.simpson import composite_simpson
+from .methods.trapezoid import composite_trapezoid
 from .optimizer import find_constants
 from .methods.plotting import PlotArtist
 from . import load_boundary_conds
@@ -45,39 +45,23 @@ class BrachistochroneErrorComputer:
         self.SETTINGS = load_boundary_conds(filepath)
         log.debug(msg=f'Config loaded')
 
-    def set_model(self, dtype = np.float64):
-        '''unpack settings, create t (independent parameter variable)
-         and compute node collections for integrand(t)'''
-        
-        log.info(msg=f'Setting up model')
+
+    def compare_methods(self, dtype=np.float64) -> tuple:
+        '''
+        this method 
+        repeatedly computes quadratures and absolute error, 
+        returns results to be later fed to `plot_errors_logscale`
+        '''
+
+        log.info(msg=f'Compares trapezoid and Simpson methods and logs results')
 
         boundary_condition = self.SETTINGS['Boundary-condition']
-
         x_a, y_a = boundary_condition['x'], boundary_condition['y']
         C, T = BrachistochroneNodeProvider.get_constants(x_a, y_a)
         a = dtype(boundary_condition['t0'])
         b = dtype(T)
-        nodes_total = self.SETTINGS['nodes_total']
-
-        T_NODES = np.linspace(a, b, nodes_total)
-        INTEGRAND = BrachistochroneNodeProvider.get_integrand_from_parameter(T_NODES, C=C)
-        
-        self.T_NODES, self.INTEGRAND = T_NODES, INTEGRAND
-        self.C, self.T = C, T
-
-        log.info(msg=f'Model is set up')
-    
-    def compare_methods(self, dtype=np.float64) -> tuple:
-        '''called after `set_model`, this method 
-        repeatedly computes quadratures and absolute error, 
-        returns results to be later fed to `plot_errors_logscale`'''
-        
-        log.info(msg=f'Compares trapezoid and Simpson methods and logs results')
-
-        T_NODES, INTEGRAND = self.T_NODES, self.INTEGRAND
-        C, T = self.C, self.T
         G = dtype(self.SETTINGS['G'])
-        t0 = self.SETTINGS['Boundary-condition']['t0']
+        integrand_f = BrachistochroneNodeProvider.get_integrand_func(C=C)
 
         errors_trapezoid = []
         errors_simpson = []
@@ -85,7 +69,7 @@ class BrachistochroneErrorComputer:
         # reference is computed from analytical formulae
         # at last I started using 1e-7 as lower bound
         # this fixed error plots and produced unavoidable error
-        reference = np.sqrt(2 * C / G) * (T - t0)
+        reference = np.sqrt(2 * C / G) * (b - a)
         functional = lambda x: x / np.sqrt(2 * G)
         get_error = lambda x : np.abs( x - reference )
 
@@ -100,19 +84,17 @@ class BrachistochroneErrorComputer:
 
         for nodes in absciasses_logspace:
             # comparison loop: compute quadratures and append to corresponding lists
-            # make use of lambdas defined above
-            x_selected, y_selected = BrachistochroneNodeProvider.select_n(T_NODES, INTEGRAND, n=nodes)
-            
-            step = (x_selected[-1] - x_selected[0]) / (nodes - 1)
+            # make use of lambdas defined above            
+            step = (b - a) / (nodes - 1)
             n_values.append(step)
 
-            functional_value = functional( composite_trapezoid_ranged(x_selected, y_selected, n=nodes) )
+            functional_value = functional( composite_trapezoid(a, b, nodes, integrand_f) )
             errors_trapezoid.append( get_error(functional_value) )
             
-            functional_value = functional( composite_simpson_ranged(x_selected, y_selected, n=nodes) )
+            functional_value = functional( composite_simpson(a, b, nodes, integrand_f) )
             errors_simpson.append( get_error(functional_value) )
         
-        log.info(msg=f'Comparesison finished successfully, now plotting')
+        log.info(msg=f'Comparison finished successfully, now plotting')
         return n_values, errors_simpson, errors_trapezoid
 
 
@@ -151,8 +133,8 @@ class BrachistochroneNodeProvider(ABC):
 
     @staticmethod
     def get_parametrized_funcs(C):
-        # the funcs tuple contains x(t) and y(t) expressions
-        # these are required to be fed to node provider
+        # the funcs tuple contains x(t), y(t), y'(x), x'(t) expressions
+        # these are required to compute the integrand value for given t
         log.debug(msg=f'Sets functions for x and y for parameter t')
         funcs = (
             lambda t: C * (t - 0.5 * np.sin(2*t)),
@@ -186,14 +168,10 @@ class BrachistochroneNodeProvider(ABC):
         return ydx
 
     @staticmethod
-    def get_integrand_from_parameter(t_range: tuple, C) -> np.array:
-        log.debug(msg=f'Computes integrand values for grid')
-
+    def get_integrand_func(C):
         _, yt, ydx, xdt = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
         integrand_f = lambda t: np.sqrt((1 + ydx(t)**2) / yt(t)) * xdt(t)
-        integrand = integrand_f(t_range)
-
-        return integrand
+        return integrand_f
 
     @staticmethod
     def find_nearest(array: np.array, value: float) -> tuple:
