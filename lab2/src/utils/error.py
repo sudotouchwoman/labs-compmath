@@ -76,13 +76,13 @@ class BrachistochroneErrorComputer:
         log.info(msg=f'Reference value is: {reference:e}')
         
         # create logspace array to finely plot on logscale
-        absciasses_logspace = np.geomspace(
+        integration_nodes_logspace = np.geomspace(
             self.SETTINGS['min'],
             self.SETTINGS['max'],
             self.SETTINGS['items'],
             dtype=int)
 
-        for nodes in absciasses_logspace:
+        for nodes in integration_nodes_logspace:
             # comparison loop: compute quadratures and append to corresponding lists
             # make use of lambdas defined above            
             step = (b - a) / (nodes - 1)
@@ -145,6 +145,12 @@ class BrachistochroneNodeProvider(ABC):
         return funcs
 
     @staticmethod
+    def get_integrand_func(C):
+        _, yt, ydx, xdt = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
+        integrand_f = lambda t: np.sqrt((1 + ydx(t)**2) / yt(t)) * xdt(t)
+        return integrand_f
+
+    @staticmethod
     def get_nodes_from_parameter(a, b, n: int, fy, fx) -> tuple:
         log.debug(msg=f'Fits nodes on given range [{a};{b}] ({n} nodes)')
         
@@ -168,13 +174,13 @@ class BrachistochroneNodeProvider(ABC):
         return ydx
 
     @staticmethod
-    def get_integrand_func(C):
-        _, yt, ydx, xdt = BrachistochroneNodeProvider.get_parametrized_funcs(C=C)
-        integrand_f = lambda t: np.sqrt((1 + ydx(t)**2) / yt(t)) * xdt(t)
-        return integrand_f
-
-    @staticmethod
     def find_nearest(array: np.array, value: float) -> tuple:
+        '''
+        Get item and its index from a given `array` which is closest to the specified `value`.
+        Assume that the array given is sorted.
+
+        Makes use of `np.searchsorted` for a quick lookup
+        '''
         idx = np.searchsorted(array, value, side='left')
         if idx > 0 and (idx == len(array) or np.fabs(value - array[idx-1]) < np.fabs(value - array[idx])):
             return array[idx - 1], idx - 1
@@ -183,6 +189,10 @@ class BrachistochroneNodeProvider(ABC):
 
     @staticmethod
     def select_n(x, y, n: int) -> tuple:
+        '''
+        Select `n` items from `x` and `y` arrays.
+        Needed as all nodes are produced initially (say 10e4 in total) and then `n` extracted
+        '''
         if n < 1: raise ValueError
         h = (x[-1] - x[0]) / (n - 1)
 

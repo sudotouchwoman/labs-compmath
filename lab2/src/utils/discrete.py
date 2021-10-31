@@ -205,45 +205,38 @@ class DiscreteOptimizer:
 
         log.debug(msg=f'Computed, now plotting')
 
-        # fig = go.Figure()
-        # fig.add_trace(go.Scatter(
-        #     x=x_model,
-        #     y=y_model,
-        #     mode='markers',
-        #     name=f'Linear (n = {n_ipl})'))
-
         fig = go.Figure()
         fig.add_trace(go.Scatter(
-            x=x_nodes[1:],
-            y=np.diff(x_nodes),
+            x=x_model,
+            y=y_model,
             mode='markers',
-            name=f'X diff (n = {n_ipl})'))
+            name=f'Interpolation (n = {n_ipl})'))
 
-        # fig.add_trace(go.Scatter(
-        #     x=x_nodes,
-        #     y=y_nodes,
-        #     mode='lines',
-        #     name=f'Brachistochrone'))
+        fig.add_trace(go.Scatter(
+            x=x_nodes,
+            y=y_nodes,
+            mode='lines',
+            name=f'Brachistochrone'))
 
-        # fig.add_trace(go.Scatter(
-        #     x=x_model,
-        #     y=ydx_model,
-        #     mode='lines',
-        #     name=f'Approx derivative (n = {n_ipl})'))
+        fig.add_trace(go.Scatter(
+            x=x_model,
+            y=ydx_model,
+            mode='lines',
+            name=f'Approx derivative (n = {n_ipl})'))
 
-        # fig.add_trace(go.Scatter(
-        #     x=x_nodes,
-        #     y=ydx_nodes,
-        #     mode='lines',
-        #     name=f'True derivative'))
+        fig.add_trace(go.Scatter(
+            x=x_nodes,
+            y=ydx_nodes,
+            mode='lines',
+            name=f'True derivative'))
 
         fig.update_layout(
-            title='X nodes diff (from np.diff)',
+            title='Interpolation results',
             autosize=True,
             width=1000,
             height=900)
-        # fig.update_yaxes(range = [-0.5,1.5])
-        fig.write_html("res/plots/diff.html")
+        fig.update_yaxes(range = [-0.5,1.5]) # autoscale won't work as derivative approaches +inf near 0
+        fig.write_html("res/plots/interpolant.html")
         log.info(msg=f'Test finished')
 
 

@@ -2,7 +2,7 @@
     "Boundary-condition":{
         "x": 2,
         "y": 1,
-        "t0": 1e-4
+        "t0": 1e-7
     },
     "min": 3,
     "max": 9999,
