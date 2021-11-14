@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.odeint import solve_ode
+from utils.neurons import solve_neuron_ode
 
 if __name__ == '__main__':
     thresh = 30
@@ -20,12 +20,9 @@ if __name__ == '__main__':
     for i, mode in enumerate(modes):
         a, b, c, d = mode
 
-        def constraint(t, X):
-            v, u = X
-            if v >= thresh:
-                v = c
-                u += d
-            return np.asarray([v, u])
+        isspike = lambda X: X[0] > thresh
+
+        reset = lambda X: np.array([c, X[1] + d])
 
         def f(t, X, I=5):
             v, u = X
@@ -33,24 +30,34 @@ if __name__ == '__main__':
             dudt = a*(b*v - u)
             return np.asarray([dvdt, dudt])
         
-        results = solve_ode([c, b*c], 100, f, constraint=constraint, h=1., method='euler')
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
-            label=r'$Forward Euler$',
+            label=r'Forward Euler',
             marker='o',
             linestyle=':',
             color='#F24162',
             alpha=.5)
         
-        results = solve_ode([c, b*c], 100, f, constraint=constraint, h=1., method='imp-euler')
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='imp-euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
-            label=r'$Implicit (backward) Euler$',
+            label=r'Implicit (backward) Euler',
             marker='o',
             linestyle=':',
             color='#58F380',
+            alpha=.5)
+
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='runge-kutta')
+        axes[divmod(i, 2)].plot(
+            results['t'],
+            results['y'][:,0],
+            label=r'Runge-Kutta',
+            marker='o',
+            linestyle=':',
+            color='#092E51',
             alpha=.5)
 
     for ax in axes:
@@ -63,4 +70,4 @@ if __name__ == '__main__':
 
     fig.tight_layout()
 
-    fig.savefig(f'res/img/modes-impl.svg', format='svg')
+    fig.savefig(f'res/img/neuron-modes.svg', format='svg')
