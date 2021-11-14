@@ -30,7 +30,7 @@ if __name__ == '__main__':
             dudt = a*(b*v - u)
             return np.asarray([dvdt, dudt])
         
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='euler')
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
@@ -40,7 +40,7 @@ if __name__ == '__main__':
             color='#F24162',
             alpha=.5)
         
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='imp-euler')
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='imp-euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
@@ -50,7 +50,7 @@ if __name__ == '__main__':
             color='#58F380',
             alpha=.5)
 
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.13, method='runge-kutta')
+        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='runge-kutta')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
