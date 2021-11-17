@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from utils.neurons import solve_neuron_ode
+from utils.odeint import solve_ode
+import seaborn as sns
+sns.set()
 
 if __name__ == '__main__':
     thresh = 30
@@ -20,9 +22,11 @@ if __name__ == '__main__':
     for i, mode in enumerate(modes):
         a, b, c, d = mode
 
-        isspike = lambda X: X[0] > thresh
-
-        reset = lambda X: np.array([c, X[1] + d])
+        def constraint(t, X):
+            v, u = X
+            if v > thresh:
+                v, u = c, u + d
+            return np.asarray([v, u])
 
         def f(t, X, I=5):
             v, u = X
@@ -30,7 +34,7 @@ if __name__ == '__main__':
             dudt = a*(b*v - u)
             return np.asarray([dvdt, dudt])
         
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='euler')
+        results = solve_ode([c, b*c], 300, f, constraint=constraint, h=.1, method='euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
@@ -40,7 +44,7 @@ if __name__ == '__main__':
             color='#F24162',
             alpha=.5)
         
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='imp-euler')
+        results = solve_ode([c, b*c], 300, f, constraint=constraint, h=.1, method='imp-euler')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
@@ -50,7 +54,7 @@ if __name__ == '__main__':
             color='#58F380',
             alpha=.5)
 
-        results = solve_neuron_ode([c, b*c], 300, f, isspike=isspike, reset=reset, h=.1, method='runge-kutta')
+        results = solve_ode([c, b*c], 300, f, constraint=constraint, h=.1, method='runge-kutta')
         axes[divmod(i, 2)].plot(
             results['t'],
             results['y'][:,0],
@@ -61,13 +65,11 @@ if __name__ == '__main__':
             alpha=.5)
 
     for ax in axes:
-        ax[0].set_ylim([-100, 100])
-        ax[1].set_ylim([-100, 100])
-        ax[0].grid(which='both')
-        ax[1].grid(which='both')
+        ax[0].set_ylim([-100, 50])
+        ax[1].set_ylim([-100, 50])
         ax[0].legend(loc='best')
         ax[1].legend(loc='best')
 
     fig.tight_layout()
 
-    fig.savefig(f'res/img/neuron-modes.svg', format='svg')
+    fig.savefig(f'res/img/neuron-modes-constrainted.svg', format='svg')

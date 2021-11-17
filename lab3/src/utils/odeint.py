@@ -1,17 +1,5 @@
 import numpy as np
 from scipy.optimize import root
-import os
-import logging
-
-LOGFILE = 'res/logs/odeint.log'
-log = logging.getLogger(__name__)
-DEBUGLEVEL = os.getenv('DEBUG_LEVEL','DEBUG')
-log.setLevel(getattr(logging, DEBUGLEVEL))
-log.disabled = os.getenv('LOG_ON', "True") == "False"
-handler = logging.FileHandler(filename=f'{LOGFILE}', encoding='utf-8')
-formatter = logging.Formatter('[%(asctime)s]::[%(levelname)s]::[%(name)s]::%(message)s', '%D # %H:%M:%S')
-handler.setFormatter(formatter)
-log.addHandler(handler)
 
 def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.0, h=5e-1, method='euler'):
     methods = ('euler', 'imp-euler', 'runge-kutta')
@@ -29,23 +17,22 @@ def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.
     def euler():
         for i, t in enumerate(t_space[:-1]):
             w = f_space[i]
+            w = w + h*f(t, w)
             if callable(constraint): w = constraint(t, w)
-            f_space[i+1] = w + h*f(t, w)
+            f_space[i+1] = w
         return dict(t=t_space, y=f_space)
-
 
     def imp_euler():
         for i, t in enumerate(t_space[:-1]):
             w = f_space[i]
+            nonlin = lambda x: w - x + h*f(t, x)
+            sol = root(nonlin, w, method='hybr')
+            w =  sol.x[0] if len(sol.x) == 1 else sol.x
             if callable(constraint): w = constraint(t, w)
-            nonlin = lambda x: w + h*f(t, x) - x
-            sol = root(nonlin, w)
-            f_space[i+1] = sol.x[0] if len(sol.x) == 1 else sol.x
+            f_space[i+1] = w
         return dict(t=t_space, y=f_space)
 
-
     def runge_kutta():
-        
         k1 = lambda t, w: (h * f(t, w))
         k2 = lambda t, w: h * f(t + .5*h, (w + .5*k1(t, w)))
         k3 = lambda t, w: h * f(t + .5*h, (w + .5*k2(t, w)))
@@ -53,8 +40,9 @@ def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.
 
         for i, t in enumerate(t_space[:-1]):
             w = f_space[i]
+            w = w + (k1(t, w) + 2*k2(t, w) + 2*k3(t, w) + k4(t, w)) / 6
             if callable(constraint): w = constraint(t, w)
-            f_space[i+1] = w + (k1(t, w) + 2*k2(t, w) + 2*k3(t, w) + k4(t, w)) / 6
+            f_space[i+1] = w
         return dict(t=t_space, y=f_space)
 
     methods = dict(zip(methods, (euler, imp_euler, runge_kutta)))

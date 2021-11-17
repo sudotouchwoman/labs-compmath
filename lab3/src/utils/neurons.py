@@ -17,77 +17,16 @@ formatter = logging.Formatter('[%(asctime)s]::[%(levelname)s]::[%(name)s]::%(mes
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
-def solve_neuron_ode(x_0: list or np.ndarray, t_n: np.number, f, isspike, reset, t_0=.0, h=5e-1, method='euler'):
-    # solve system of ode-s describing the biological neuron
-    # 3 methods are implemented: vanilla forward Euler, backward Euler with
-    # numeric solution of non-linear system
-    # and Runge-Kutta method (4th order)
-    methods = ('euler', 'imp-euler', 'runge-kutta')
-    if method not in methods: raise ValueError(f'Invalid method value, expected one of {methods}')
-
-    if t_n < t_0: raise ValueError(f'Invalid t bounds')
-    if t_n < t_0 + h : raise ValueError(f'The step value is too big')
-    if not callable(f): raise TypeError('f provided is not a callable')
-
-    x_0 = np.asarray(x_0)
-    t_space = np.arange(t_0, t_n + h, step=h)
-    f_space = np.zeros(shape=(len(t_space), len(x_0)))
-    f_space[0] = x_0
-
-    def euler():
-        for i, t in enumerate(t_space[:-1]):
-            w = f_space[i]
-            if isspike(w):
-                f_space[i+1] = reset(w)
-                continue
-            f_space[i+1] = w + h*f(t, w)
-        return dict(t=t_space, y=f_space)
-
-    def imp_euler():
-        for i, t in enumerate(t_space[:-1]):
-            w = f_space[i]
-            if isspike(w):
-                f_space[i+1] = reset(w)
-                continue
-            # there was an idea of predictor-corrector scheme
-            # but the results were unsatisfactory
-            # predicted = w + h*f(t, w)
-            # corrected = w + h*f(t, predicted)
-            # f_space[i+1] = corrected
-            nonlin = lambda W: w + h*f(t, W) - W
-            sol = root(nonlin, w)
-            f_space[i+1] = sol.x
-        return dict(t=t_space, y=f_space)
-
-    def runge_kutta():
-
-        for i, t in enumerate(t_space[:-1]):
-            w = f_space[i]
-            if isspike(w):
-                f_space[i+1] = reset(w)
-                continue
-
-            k1 = h*f(t,w)
-            k2 = h*f(t + .5*h, w + .5*k1)
-            k3 = h*f(t + .5*h, w + .5*k2)
-            k4 = h*f(t + h, w + k3)
-
-            f_space[i+1] = w + (k1 + 2*k2 + 2*k3 + k4) / 6
-        return dict(t=t_space, y=f_space)
-
-    methods = dict(zip(methods, (euler, imp_euler, runge_kutta)))
-    return methods[method]()
-
-
 def draw_firings(firings: list, img_name: str='res/img/firings.svg') -> None:
     # use plotly express to create great vis with ease
     log.info(msg=f'Creates image')
     if len(firings) == 0: return
     df_firings = pd.DataFrame(firings)
-    fig = px.scatter_3d(df_firings, x='time', y='neuron ID', z='peak', color='color')
-    fig.update_traces(marker=dict(size=3, opacity=.7))
-    fig.write_image(img_name)
-    fig.write_html("res/img/surface.html")
+    fig = px.scatter_3d(df_firings, x='Time', y='Neuron ID', z='Peak', color='State')
+    # fig = px.scatter(df_firings, x='time', y='neuron ID')
+    fig.update_traces(marker=dict(size=2, opacity=.8))
+    # fig.write_image(img_name, scale=5)
+    fig.write_html("res/img/surface-fixed.html")
     log.info(msg=f'SVG image saved at "{img_name}"')
 
 def simulate(Ne: int=800, Ni: int=200) -> list:
@@ -122,24 +61,29 @@ def simulate(Ne: int=800, Ni: int=200) -> list:
 
     AdjM = np.hstack((0.5*rng.random((Ne+Ni, Ne)), -rng.random((Ne+Ni, Ni))))
     firings = []
-    color = lambda p: 'red' if p > 30 else 'blue'
 
     for t in range(1000):
         fired = v > 30
-        if t % 10 == 0:
-            log.debug(msg=f'V values fired: {v[fired][::2]}')
         # for f in np.where(v > 30)[0]:
-        #     firings.append({'time': t, 'neuron': f, 'peak': min(v[f], 1e2)})
-        for i, f in enumerate(v[::10]):
-            firings.append({'time': t, 'neuron ID': i, 'peak': min(f, 2e2), 'color': color(f)})
+        #     firings.append({'time': t, 'neuron ID': f})
         v[fired] = c[fired]
-        u[fired] = u[fired] + d[fired]
+        u[fired] += d[fired]
+
+        for i, spike in enumerate(fired):
+            if spike and i % 10 == 0:
+                firings.append({'Time': t, 'Neuron ID': i, 'Peak': 30, 'State': 'Firing'})
+
+        for i, f in enumerate(v[::10]):
+            if f > 30: continue
+            firings.append({'Time': t, 'Neuron ID': i*10, 'Peak': f, 'State': 'Dormant'})
 
         I = np.hstack((5*rng.random(Ne), 2*rng.random(Ni)))
         I += np.sum(AdjM[:, fired], axis=1)
 
         for _ in range(evals):
-            u += h*a*(b*v - u)
-            v += h*(0.04*v**2 + 5*v + 140 - u + I)
+            _v = v + h*(0.04*v**2 + 5*v + 140 - u + I)
+            _u = u + h*a*(b*v - u)
+            v = _v
+            u = _u
 
     return firings
