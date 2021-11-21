@@ -17,21 +17,24 @@ formatter = logging.Formatter('[%(asctime)s]::[%(levelname)s]::[%(name)s]::%(mes
 handler.setFormatter(formatter)
 log.addHandler(handler)
 
-def draw_firings(firings: list, img_name: str='res/img/firings.html') -> None:
+def draw_firings(firings: list, img_name: str='res/img/firings', use_3D: bool=True) -> None:
     # use plotly express to create great vis with ease
     if len(firings) == 0: return
     log.info(msg=f'Creates image')
-    
-    df_firings = pd.DataFrame(firings)
-    fig = px.scatter_3d(df_firings, x='Time', y='Neuron ID', z='Peak', color='State')
-    fig.update_traces(marker=dict(size=2, opacity=.8))
-    
-    # uncomment to also create static svg images (not that representative tho)
-    # fig.write_image(img_name, scale=5)
-    fig.write_html(img_name)
-    log.info(msg=f'SVG image saved at "{img_name}"')
 
-def simulate(Ne: int=800, Ni: int=200, h: float=.5, t_n: int=2000) -> list:
+    df_firings = pd.DataFrame(firings)
+    if use_3D:
+        fig = px.scatter_3d(df_firings, x='Time', y='Neuron ID', z='Peak', color='State')
+        fig.update_traces(marker=dict(size=2, opacity=.8))
+        fig.write_html(f'{img_name}.html')
+        log.info(msg=f'HTML scatter saved at "{img_name}.html"')
+    else:
+        fig = px.scatter(df_firings, x='Time', y='Neuron ID')
+        fig.update_traces(marker=dict(size=2, opacity=.8))
+        fig.write_image(f'{img_name}.svg', scale=5)
+        log.info(msg=f'SVG image saved at "{img_name}.svg"')
+
+def simulate(Ne: int=800, Ni: int=200, h: float=.5, t_0: float=0., t_n: float=1000., use_3D: bool=True) -> list:
     # simulate biological neural network activity
     # network consists of Ne excitatory neurons and Ni inhibitory neurons
     # there attributes are chosen with random term
@@ -40,7 +43,7 @@ def simulate(Ne: int=800, Ni: int=200, h: float=.5, t_n: int=2000) -> list:
     # if lower chosen, the system will encounter overflows (primarily in square, see below)
     # if higher chosen, the avalance of spiking occurs!
 
-    if not isinstance(t_n, int) or t_n < 1: raise ValueError('t_0 specified is invalid')
+    if not t_0 < t_n: raise ValueError('bounds specified are invalid')
     if not .1 <= h <= 1.: raise ValueError('Invalid step size')
     evals = int( 1 / h )
     log.info(msg=f'Will perform {evals} evaluations per millisecond (step is {h})')
@@ -67,31 +70,38 @@ def simulate(Ne: int=800, Ni: int=200, h: float=.5, t_n: int=2000) -> list:
     
     log.debug(msg=f'Simulation starts')
 
-    for t in range(t_n):
-        fired = v > 30
+    I_0 = np.hstack((5*rng.random(Ne), 2*rng.random(Ni)))
+    thresh = 30
 
-        for i, _ in filter(lambda e: e[1] and e[0] % 10 == 0, enumerate(fired)):
-            # only append each 10-th firing neuron as there are like lots of these
-            # to obtain all firing neurons, one should remove the second condition in filter
-            # and better not collect other neuron data (it may look imbalanced on the same scatter plot)
-            # I created separate 2D scatters earlier specifically for all firing neurons earlier
-            firings.append({'Time': t, 'Neuron ID': i, 'Peak': 30, 'State': 'Firing'})
+    def euler_step(v, u):
+        _v = v + h*(0.04*v**2 + 5*v + 140 - u + I)
+        _u = u + h*a*(b*v - u)
+        return _v, _u
 
-        for i, f in enumerate(v[::10]):
-            if f > 30: continue
-            firings.append({'Time': t, 'Neuron ID': i*10, 'Peak': f, 'State': 'Dormant'})
+    for t in np.arange(t_0, t_n, step=h):
+        fired = v > thresh
+
+        if use_3D:
+            for i, _ in filter(lambda e: e[1] and e[0] % 10 == 0, enumerate(fired)):
+            #     # only append each 10-th firing neuron as there are like lots of these
+            #     # to obtain all firing neurons, one should remove the second condition in filter
+            #     # and better not collect other neuron data (it may look imbalanced on the same scatter plot)
+                firings.append({'Time': t, 'Neuron ID': i, 'Peak': 30, 'State': 'Firing'})
+
+            for i, f in filter(lambda e: e[1] <= thresh and e[0] % 10 == 0, enumerate(v)):
+                # collect current data about all dormant neurons
+                firings.append({'Time': t, 'Neuron ID': i, 'Peak': f, 'State': 'Dormant'})
+        else:
+            for i in np.where(v > thresh)[0]:
+                # collect all firings
+                firings.append({'Time': t, 'Neuron ID': i})
 
         v[fired] = c[fired]
         u[fired] += d[fired]
 
-        I = np.hstack((5*rng.random(Ne), 2*rng.random(Ni)))
+        I = I_0.copy()
         I += np.sum(AdjM[:, fired], axis=1)
-
-        for _ in range(evals):
-            _v = v + h*(0.04*v**2 + 5*v + 140 - u + I)
-            _u = u + h*a*(b*v - u)
-            v = _v
-            u = _u
+        v, u = euler_step(v, u)
 
     log.debug(msg=f'Simulation finished')
 

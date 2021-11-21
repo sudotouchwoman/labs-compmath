@@ -3,7 +3,7 @@ from scipy.optimize import root
 
 def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.0, h=5e-1, method='euler'):
     '''
-    the function implements solvers for ordinal differential equation system, represented as a single
+    the function implements solvers for systems of ordinal differential equations, represented by a single
     vector-function of single independent variable
 
     + `x_0`: `list` or `np.ndarray` - the initial condition of dynamic system
@@ -16,9 +16,9 @@ def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.
 
     + `t_0`: `np.number` - the left bound independent variable value
 
-    + `h`: float, should be less then `t_n`-`t_0`, the computation step
+    + `h`: float, should be less then `t_n - t_0`, the computation step
 
-    + `method`: one of ('euler', 'imp-euler', 'runge-kutta'). the method to use to obtain numeric solution of the ODE.
+    + `method`: one of (`euler`, `imp-euler`, `runge-kutta`). the method to use to obtain numeric solution of the ODE.
     Note that 'euler' has pretty bad accuracy (the worst, actually), 'imp-euler', representing backward (implicit) Euler method
     uses `root` to find numeric solution of the non-linear equation at each step thus is vulnerable to function shape
     'runge-kutta' utilizes 4-th order Runge-Kutta method which has greater accuracy but is significantly slower as it makes 4 calls
@@ -26,7 +26,7 @@ def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.
     '''
 
     methods = ('euler', 'imp-euler', 'runge-kutta')
-    if method not in methods: raise ValueError(f'Invalid method value, expected one of {methods}')
+    if method not in methods: raise ValueError(f'Invalid method name, expected one of {methods}')
 
     if t_n < t_0: raise ValueError(f'Invalid t bounds')
     if t_n < t_0 + h : raise ValueError(f'The step value is too big')
@@ -49,23 +49,25 @@ def solve_ode(x_0: list or np.ndarray, t_n: np.number, f, constraint=None, t_0=.
     def imp_euler():
         for i, t in enumerate(t_space[:-1]):
             w = f_space[i]
-            nonlin = lambda x: w - x + h*f(t, x)
-            sol = root(nonlin, w, method='hybr')
+            sol = root(lambda x: w - x + h*f(t, x), w, method='hybr')
             w =  sol.x[0] if len(sol.x) == 1 else sol.x
             f_space[i+1] = constraint(t, w)
         return dict(t=t_space, y=f_space)
 
     def runge_kutta():
-        k1 = lambda t, w: (h * f(t, w))
-        k2 = lambda t, w: h * f(t + .5*h, (w + .5*k1(t, w)))
-        k3 = lambda t, w: h * f(t + .5*h, (w + .5*k2(t, w)))
-        k4 = lambda t, w: h * f(t + h, (w + k3(t, w)))
-
         for i, t in enumerate(t_space[:-1]):
             w = f_space[i]
-            w = w + (k1(t, w) + 2*k2(t, w) + 2*k3(t, w) + k4(t, w)) / 6
+
+            k1 = h * f(t, w)
+            k2 = h * f(t + .5*h, w + .5*k1)
+            k3 = h * f(t + .5*h, w + .5*k2)
+            k4 = h * f(t + h, w + k3)
+
+            w = w + (k1 + 2*k2 + 2*k3 + k4) / 6
             f_space[i+1] = constraint(t, w)
         return dict(t=t_space, y=f_space)
 
     methods = dict(zip(methods, (euler, imp_euler, runge_kutta)))
     return methods[method]()
+
+
